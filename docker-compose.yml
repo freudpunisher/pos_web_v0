@@ -1,0 +1,31 @@
+services:
+  # ── Next.js Application ────────────────────────────────────────────────────
+  app:
+    build:
+      context: .
+      dockerfile: Dockerfile
+    container_name: retail-pos-app
+    restart: unless-stopped
+    
+    extra_hosts:
+      - "host.docker.internal:host-gateway"
+
+    # Charge toutes les variables du fichier .env
+    env_file:
+      - .env
+
+    environment:
+      # On surcharge seulement DATABASE_URL pour Docker
+      DATABASE_URL: postgresql://${POSTGRES_USER:-postgres}:${POSTGRES_PASSWORD:-postgres2025}@host.docker.internal:${POSTGRES_PORT:-5432}/${POSTGRES_DB:-retail_pos_db}
+      
+      NODE_ENV: production
+      SESSION_SECRET: ${SESSION_SECRET}
+
+    ports:
+      - "${APP_PORT:-3000}:3000"
+
+    volumes:
+      - app_uploads:/app/public/uploads
+
+volumes:
+  app_uploads:

@@ -1,0 +1,9 @@
+<svg width="180" height="180" viewBox="0 0 180 180" fill="none" xmlns="http://www.w3.org/2000/svg">
+  <rect width="180" height="180" rx="37" fill="#2563eb" />
+  <g transform="translate(90,90) scale(1.1) translate(-90,-90)">
+    <path d="M155 62.625V150a15 15 0 0 1-15 15H40a15 15 0 0 1-15-15V62.625" stroke="white" stroke-width="7.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M155 62.625 90 15 25 62.625" stroke="white" stroke-width="7.5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M55 120h30v30H55z" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+    <path d="M105 90h30v30h-30z" stroke="white" stroke-width="5" fill="none" stroke-linecap="round" stroke-linejoin="round"/>
+  </g>
+</svg>

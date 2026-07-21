@@ -1,0 +1,147 @@
+{
+  "version": "7",
+  "dialect": "postgresql",
+  "entries": [
+    {
+      "idx": 0,
+      "version": "7",
+      "when": 1769091617145,
+      "tag": "0000_complete_slapstick",
+      "breakpoints": true
+    },
+    {
+      "idx": 1,
+      "version": "7",
+      "when": 1769415494169,
+      "tag": "0001_serious_tarot",
+      "breakpoints": true
+    },
+    {
+      "idx": 2,
+      "version": "7",
+      "when": 1769500000000,
+      "tag": "0002_restobar_tables",
+      "when": 1770736872348,
+      "tag": "0002_add_measurement_units",
+      "breakpoints": true
+    },
+    {
+      "idx": 3,
+      "version": "7",
+      "when": 1770000000000,
+      "tag": "0003_ingredient_type",
+      "when": 1770742053367,
+      "tag": "0003_products_unit_text",
+      "breakpoints": true
+    },
+    {
+      "idx": 4,
+      "version": "7",
+      "when": 1770000000001,
+      "tag": "0004_bill_reference",
+      "breakpoints": true
+    },
+    {
+      "idx": 5,
+      "version": "7",
+      "when": 1770500000000,
+      "tag": "0005_expenses",
+      "breakpoints": true
+    },
+    {
+      "idx": 6,
+      "version": "7",
+      "when": 1770600000000,
+      "tag": "0006_menu_permissions",
+      "when": 1770792559556,
+      "tag": "0006_add_recipe_grs",
+      "breakpoints": true
+    },
+    {
+      "idx": 7,
+      "version": "7",
+      "when": 1770700000000,
+      "tag": "0007_notifications",
+      "when": 1770795202313,
+      "tag": "0007_add_product_sector",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1770802442402,
+      "tag": "0008_add_purchase_orders_sector",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1770803101231,
+      "tag": "0009_add_purchase_order_ref",
+      "breakpoints": true
+    },
+    {
+      "idx": 8,
+      "version": "7",
+      "when": 1770800000000,
+      "tag": "0008_location_transfer_types",
+      "breakpoints": true
+    },
+    {
+      "idx": 9,
+      "version": "7",
+      "when": 1770900000000,
+      "tag": "0009_chef_role",
+      "breakpoints": true
+    },
+    {
+      "idx": 10,
+      "version": "7",
+      "when": 1771000000000,
+      "tag": "0010_add_inventory_location_id",
+      "breakpoints": true
+    },
+    {
+      "idx": 11,
+      "version": "7",
+      "when": 1772000000000,
+      "tag": "0011_stock_movements_enhanced",
+      "breakpoints": true
+    },
+    {
+      "idx": 12,
+      "version": "7",
+      "when": 1773000000000,
+      "tag": "0012_add_product_selling_units",
+      "breakpoints": true
+    },
+    {
+      "idx": 13,
+      "version": "7",
+      "when": 1774000000000,
+      "tag": "0013_add_caisse_tables",
+      "breakpoints": true
+    },
+    {
+      "idx": 14,
+      "version": "7",
+      "when": 1775000000000,
+      "tag": "0014_add_conversion_factor",
+      "breakpoints": true
+    },
+        {
+            "idx": 15,
+            "version": "7",
+            "when": 1776000000000,
+            "tag": "0015_convert_stock_to_numeric",
+            "breakpoints": true
+        },
+        {
+            "idx": 16,
+            "version": "7",
+            "when": 1777000000000,
+            "tag": "0016_stock_manager_role",
+            "breakpoints": true
+        }
+    ]
+}
