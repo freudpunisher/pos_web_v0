@@ -17,13 +17,13 @@ export async function GET(
 
         // Enrich with location data
         const enriched = await Promise.all(
-            userLocs.map(async (ul) => {
+            userLocs.map(async (ul: { locationId: string; [key: string]: any }) => {
                 const location = await db
                     .select()
                     .from(locationsTable)
                     .where(eq(locationsTable.id, ul.locationId))
                     .limit(1)
-                    .then((res) => res[0])
+                    .then((res: any[]) => res[0])
                 return { ...ul, location }
             })
         )
@@ -68,7 +68,7 @@ export async function POST(
             .from(locationsTable)
             .where(eq(locationsTable.id, locationId))
             .limit(1)
-            .then((res) => res[0])
+            .then((res: any[]) => res[0])
 
         return NextResponse.json({ ...newAssignment, location }, { status: 201 })
     } catch (error) {
