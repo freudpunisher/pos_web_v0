@@ -35,7 +35,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ id:
         return { error: "Recipe not found", status: 404 }
       }
 
-      const warehouse = await resolveWarehouse(tx, 'food') // Or derived from product.productType
+      const warehouse = await resolveWarehouse(tx) // Or derived from product.productType
       const [finishedStock] = await tx
         .select()
         .from(stock)

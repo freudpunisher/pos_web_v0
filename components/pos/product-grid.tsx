@@ -36,12 +36,13 @@ import {
   FlowerIcon,
   Loader2,
   AlertTriangle,
-  Utensils,
-  Beer,
+  ShoppingBag,
+  GlassWater,
 } from "lucide-react"
 import { cn } from "@/lib/utils"
-import { useProducts, useCategories } from "@/hooks/use-products"
+import { useProducts } from "@/hooks/use-products"
 import { useAuth } from "@/lib/auth-context"
+import { useProductTypes } from "@/hooks/use-product-types"
 
 function getCategoryIcon(category: string, productName: string) {
   // Specific product icons
@@ -78,29 +79,24 @@ function getCategoryIcon(category: string, productName: string) {
 
 export function ProductGrid() {
   const [search, setSearch] = useState("")
-  const [selectedCategoryId, setSelectedCategoryId] = useState<string | null>(null)
   const [posFilter, setPosFilter] = useState<string>("all")
   const { addItem, items, productStockMap, principalStockMap } = useCart()
   const [stockAlert, setStockAlert] = useState<{ product: any; secondary: number; principal: number } | null>(null)
   const [unitSelectorProduct, setUnitSelectorProduct] = useState<any | null>(null)
 
-  const { products, loading: productsLoading, refresh } = useProducts(selectedCategoryId || "all", search)
-  const { categories, loading: categoriesLoading } = useCategories()
+  const { products, loading: productsLoading, refresh } = useProducts(search)
+  const { activeTypes } = useProductTypes()
   const { user } = useAuth()
 
   // Filter: only show drink and food (not ingredients), optionally filter by type
   const posProducts = useMemo(() => {
-    let filtered = products.filter((p: any) => p.productType !== "ingredient")
-    if (posFilter !== "all") filtered = filtered.filter((p: any) => p.productType === posFilter)
-    if (user?.role === "cashier_bakery") {
-      filtered = filtered.filter((p: any) => p.sector === "Boulangerie" && p.type === "finished_good")
-    }
+    let filtered = products
+    if (posFilter !== "all") filtered = filtered.filter((p: any) => p.productTypeId === posFilter)
     return filtered
-  }, [products, posFilter, user?.role])
+  }, [products, posFilter])
 
   const getStockStatus = (product: any, effectiveStock: number) => {
-    if (product.productType === "food") return "mto"
-    if (effectiveStock === 0 && product.productType !== "food") return "out"
+    if (effectiveStock === 0) return "out"
     if (effectiveStock <= product.minStock) return "low"
     return "in-stock"
   }
@@ -108,9 +104,8 @@ export function ProductGrid() {
   const handleAddItem = (product: any, sellingUnit?: SellingUnit) => {
     const secondaryQty = productStockMap[product.id]
     const principalQty = principalStockMap[product.id]
-    const isTracked = product.productType !== "food" && product.trackStock
 
-    if (isTracked && secondaryQty !== undefined && secondaryQty <= 0 && principalQty && principalQty > 0) {
+    if (secondaryQty !== undefined && secondaryQty <= 0 && principalQty && principalQty > 0) {
       setStockAlert({ product, secondary: secondaryQty, principal: principalQty })
       return
     }
@@ -127,11 +122,10 @@ export function ProductGrid() {
 
   const handleProductClick = (product: any) => {
     const hasSellingUnits = product.sellingUnits && product.sellingUnits.length > 0
-    const isTracked = product.productType !== "food" && product.trackStock
-    const effectiveStock = isTracked ? (productStockMap[product.id] ?? 0) : Infinity
-    const isOutOfStock = effectiveStock === 0 && product.productType !== "food"
+    const effectiveStock = productStockMap[product.id] ?? 0
+    const isOutOfStock = effectiveStock === 0
     const cartQty = items.filter((i) => i.id === product.id).reduce((sum, i) => sum + i.quantity, 0)
-    const isCartFull = product.productType !== "food" && cartQty >= effectiveStock
+    const isCartFull = cartQty >= effectiveStock
 
     if (isOutOfStock || isCartFull) return
 
@@ -166,7 +160,7 @@ export function ProductGrid() {
 
         <div className="w-full overflow-x-auto">
           <div className="flex gap-1.5 pb-1 min-w-min">
-<Button
+            <Button
                   variant={posFilter === "all" ? "default" : "outline"}
                   size="sm"
                   onClick={() => setPosFilter("all")}
@@ -174,52 +168,17 @@ export function ProductGrid() {
                 >
                   Tous
                 </Button>
-                <Button
-                  variant={posFilter === "drink" ? "default" : "outline"}
-                  size="sm"
-                  onClick={() => setPosFilter("drink")}
-                  className="shrink-0 h-7 text-xs"
-                >
-                  Boissons
-                </Button>
-          <Button
-            variant={posFilter === "food" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setPosFilter("food")}
-            className="shrink-0 h-7 text-xs"
-          >
-            <Utensils className="h-3.5 w-3.5 mr-1" />
-            Plats
-          </Button>
-          <Button
-            variant={posFilter === "others" ? "default" : "outline"}
-            size="sm"
-            onClick={() => setPosFilter("others")}
-            className="shrink-0 h-7 text-xs"
-          >
-            <Package className="h-3.5 w-3.5 mr-1" />
-            Autres
-          </Button>
-            <div className="w-px bg-border mx-1 shrink-0" />
-            <Button
-              variant={selectedCategoryId === null ? "default" : "outline"}
-              size="sm"
-              onClick={() => setSelectedCategoryId(null)}
-              className="shrink-0 h-7 text-xs"
-            >
-              Catégories
-            </Button>
-            {categories.map((category: any) => (
-              <Button
-                key={category.id}
-                variant={selectedCategoryId === category.id ? "default" : "outline"}
-                size="sm"
-                onClick={() => setSelectedCategoryId(category.id)}
-                className="shrink-0 h-7 text-xs"
-              >
-                {category.name}
-              </Button>
-            ))}
+                {activeTypes.map((t) => (
+                  <Button
+                    key={t.id}
+                    variant={posFilter === t.id ? "default" : "outline"}
+                    size="sm"
+                    onClick={() => setPosFilter(t.id)}
+                    className="shrink-0 h-7 text-xs"
+                  >
+                    {t.name}
+                  </Button>
+                ))}
           </div>
         </div>
       </div>
@@ -233,15 +192,13 @@ export function ProductGrid() {
         ) : (
           <div className="grid grid-cols-2 gap-2 lg:grid-cols-3 xl:grid-cols-3 2xl:grid-cols-4">
             {posProducts.map((product: any) => {
-              const isTracked = product.productType === "food" || product.trackStock
-              const effectiveStock = isTracked ? (productStockMap[product.id] ?? 0) : Infinity
+              const effectiveStock = productStockMap[product.id] ?? 0
               const stockStatus = getStockStatus(product, effectiveStock)
               const isOutOfStock = stockStatus === "out"
-              const isMadeToOrder = stockStatus === "mto"
               const IconComponent = getCategoryIcon(product.categoryName || "", product.name)
 
               const cartQty = items.filter((i) => i.id === product.id).reduce((sum, i) => sum + i.quantity, 0)
-              const isCartFull = !isMadeToOrder && cartQty >= effectiveStock
+              const isCartFull = cartQty >= effectiveStock
 
               return (
                 <Card
@@ -255,21 +212,9 @@ export function ProductGrid() {
                     <CardContent className="p-3">
                         <div className="relative mb-2 aspect-square overflow-hidden rounded-lg bg-secondary">
                             <div className="flex h-full items-center justify-center">
-                                {product.image ? (
-                                    <img
-                                        src={product.image}
-                                        alt={product.name}
-                                        className="h-full w-full object-cover"
-                                        onError={(e) => { (e.target as HTMLImageElement).style.display = "none"; (e.target as HTMLImageElement).parentElement!.querySelector(".fallback-icon")?.classList.remove("hidden") }}
-                                    />
-                                ) : null}
-                                <IconComponent className={`h-14 w-14 text-muted-foreground ${product.image ? "hidden fallback-icon" : ""}`} />
+                                <IconComponent className="h-14 w-14 text-muted-foreground" />
                             </div>
-                      {isMadeToOrder ? (
-                        <Badge className="absolute right-1 top-1 bg-purple-500/80 text-white border-0 text-xs">
-                          FSP
-                        </Badge>
-                      ) : isCartFull ? (
+                      {isCartFull ? (
                         <Badge className="absolute right-1 top-1 bg-destructive text-xs">Max</Badge>
                       ) : stockStatus === "out" ? (
                         <Badge className="absolute right-1 top-1 bg-destructive text-xs">Épuisé</Badge>
@@ -302,10 +247,9 @@ export function ProductGrid() {
                           }
                         </p>
                         <span className="text-xs text-muted-foreground">
-                          {isMadeToOrder ? "Fabriqué sur place" : !isTracked ? "En stock"
-                            : product.sellingUnits?.length > 0
-                              ? `${formatStockFromSellingUnits(Number(effectiveStock), product.sellingUnits)} en stock`
-                              : `${Number(effectiveStock)} en stock`}
+                          {product.sellingUnits?.length > 0
+                            ? `${formatStockFromSellingUnits(Number(effectiveStock), product.sellingUnits)} en stock`
+                            : `${Number(effectiveStock)} en stock`}
                         </span>
                       </div>
                     </div>

@@ -59,7 +59,7 @@ export async function POST(request: Request) {
 
             for (const item of recipe.ingredients) {
                 const requiredQty = Number(item.quantity) * productionRatio
-                const warehouse = await resolveWarehouse(tx, 'raw_material')
+                const warehouse = await resolveWarehouse(tx)
                 const [stockRecord] = await tx
                     .select()
                     .from(stock)
@@ -106,7 +106,7 @@ export async function POST(request: Request) {
             // 3. Deduct Raw Materials (Ingredients)
             for (const item of recipe.ingredients) {
                 const requiredQty = Number(item.quantity) * productionRatio
-                const warehouse = await resolveWarehouse(tx, 'raw_material')
+                const warehouse = await resolveWarehouse(tx)
 
                 const [stockRecord] = await tx
                     .select()

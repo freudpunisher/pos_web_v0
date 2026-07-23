@@ -17,7 +17,7 @@ import { printReport } from "@/lib/print-report"
 import {
     ArrowRightLeft, Loader2, Plus, CheckCircle, Package,
     Warehouse, Store, Clock, User, FileText, XCircle,
-    ChevronRight, ChevronLeft, Hash, CalendarDays, Beer, UtensilsCrossed,
+    ChevronRight, ChevronLeft, Hash, CalendarDays,
     Layers, ListChecks, Printer, Search, X, RotateCcw
 } from "lucide-react"
 
@@ -27,7 +27,7 @@ export default function StockTransfersPage() {
     const { user } = useAuth()
     const currentUserId = user?.id || users[0]?.id || ""
     const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin" || user?.role === "stock_manager"
-    const isManagerOrAdminOnly = user?.role === "manager" || user?.role === "admin"
+    const canSeeStockOut = isManagerOrAdmin
 
     const [productFilter, setProductFilter] = useState("all")
     const [startDate, setStartDate] = useState("")
@@ -152,38 +152,15 @@ export default function StockTransfersPage() {
                     }} disabled={filteredTransfers.length === 0}>
                         <Printer className="h-4 w-4 mr-1.5" /> Imprimer
                     </Button>
-                    {isManagerOrAdminOnly && (
-                        <Button size="sm" variant="outline" asChild>
-                            <Link href="/stock/transfers/to-transitional">
-                                <Layers className="h-4 w-4 mr-1.5" /> Réapprovisionner le stock de transition
-                            </Link>
-                        </Button>
-                    )}
-                    {user?.role !== "stock_manager" && (
-                        <Button size="sm" variant="outline" asChild>
-                            <Link href="/stock/transfers/to-bar">
-                                <Beer className="h-4 w-4 mr-1.5" /> Demande au bar
-                            </Link>
-                        </Button>
-                    )}
-                    {isManagerOrAdminOnly && (
+                    <Button size="sm" asChild>
+                        <Link href="/stock/transfers/new">
+                            <Plus className="h-4 w-4 mr-1.5" /> Nouveau transfert
+                        </Link>
+                    </Button>
+                    {canSeeStockOut && (
                         <Button size="sm" variant="outline" asChild>
                             <Link href="/stock/transfers/sortie-bar">
-                                <Beer className="h-4 w-4 mr-1.5" /> Sortie bar
-                            </Link>
-                        </Button>
-                    )}
-                    {isManagerOrAdmin && (
-                        <Button size="sm" variant="outline" asChild>
-                            <Link href="/stock/transfers/sortie-cuisine">
-                                <UtensilsCrossed className="h-4 w-4 mr-1.5" /> Sortie cuisine
-                            </Link>
-                        </Button>
-                    )}
-                    {isManagerOrAdmin && (
-                        <Button size="sm" variant="outline" asChild>
-                            <Link href="/stock/transfers/retour-cuisine">
-                                <RotateCcw className="h-4 w-4 mr-1.5" /> Retour cuisine
+                                <Store className="h-4 w-4 mr-1.5" /> Sortie de stock
                             </Link>
                         </Button>
                     )}

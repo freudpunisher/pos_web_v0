@@ -64,7 +64,6 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
     (Number.parseFloat(String(selectedClient.creditBalance)) + total > Number.parseFloat(String(selectedClient.creditLimit))))
 
   const maxQtyForItem = (item: CartItem): number => {
-    if (item.productType === "food" || !item.trackStock) return Infinity
     const totalStock = productStockMap[item.id] ?? 0
     if (totalStock <= 0) return 0
     const cf = item.sellingUnits?.find((s) => s.id === item.sellingUnitId)?.conversionFactor ?? 1

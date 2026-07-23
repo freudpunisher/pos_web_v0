@@ -90,7 +90,7 @@ export default function ProductionHistoryPage() {
       run.batchNumber || run.id?.slice(0, 8),
       run.recipe?.name || "",
       run.recipe?.product?.name || "",
-      `${Number(run.actualQuantity || run.plannedQuantity || 0)} ${run.recipe?.product?.unit || ""}`.trim(),
+      `${Number(run.actualQuantity || run.plannedQuantity || 0)}`.trim(),
       run.productionCost ? Number(run.productionCost) : "",
       run.endDate ? new Date(run.endDate).toLocaleString() : "",
       run.user?.name || "",
@@ -224,7 +224,7 @@ export default function ProductionHistoryPage() {
                       <TableCell className="font-medium">{run.recipe?.name || "—"}</TableCell>
                       <TableCell>{run.recipe?.product?.name || "—"}</TableCell>
                       <TableCell className="text-right">
-                        {Number(run.actualQuantity || run.plannedQuantity)} {run.recipe?.product?.unit || ""}
+                        {Number(run.actualQuantity || run.plannedQuantity)}
                       </TableCell>
                       <TableCell className="text-right">
                         {run.productionCost ? formatCurrency(Number(run.productionCost)) : "—"}

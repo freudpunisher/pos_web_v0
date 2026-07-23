@@ -149,7 +149,6 @@ export function UserManagement() {
 
                     <SelectItem value="manager">Gérant</SelectItem>
                     <SelectItem value="stock_manager">Gestionnaire de stock</SelectItem>
-                    <SelectItem value="waiter">Serveur</SelectItem>
                     {/* <SelectItem value="investor">Investisseur</SelectItem> */}
                     {/* <SelectItem value="accountant">Comptable</SelectItem> */}
                   </SelectContent>

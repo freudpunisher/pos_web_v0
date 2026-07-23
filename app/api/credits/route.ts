@@ -1,13 +1,12 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { creditRecords, creditPayments, clients, transactions, transactionItems, products } from "@/lib/db/schema"
-import { and, asc, eq, inArray } from "drizzle-orm"
+import { creditRecords, creditPayments, clients, transactions } from "@/lib/db/schema"
+import { asc, eq } from "drizzle-orm"
 
 export async function GET(request: Request) {
   try {
     const { searchParams } = new URL(request.url)
     const status = searchParams.get("status")
-    const sector = searchParams.get("sector")
 
     let query = db
       .select({
@@ -58,21 +57,6 @@ export async function GET(request: Request) {
       ...r,
       payments: paymentsByRecord.get(r.id) || [],
     }))
-
-    if (sector && result.length > 0) {
-      const transactionIds = result.map((r) => r.transactionId)
-      const sectorTransactionIds = new Set(
-        (await db
-          .select({ transactionId: transactionItems.transactionId })
-          .from(transactionItems)
-          .innerJoin(products, eq(transactionItems.productId, products.id))
-          .where(and(inArray(transactionItems.transactionId, transactionIds as string[]), eq(products.sector, sector))))
-          .filter((item) => item && (item as any).transactionId)
-          .map((item) => item.transactionId)
-      )
-
-      result = result.filter((r) => sectorTransactionIds.has(r.transactionId))
-    }
 
     return NextResponse.json(result)
   } catch (error) {

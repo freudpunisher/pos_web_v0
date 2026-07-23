@@ -7,14 +7,12 @@ import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import { formatCurrency } from "@/lib/mock-data"
-import { ArrowLeft, ChefHat, Bell, Utensils, XCircle, User, Table2, Loader2 } from "lucide-react"
+import { ArrowLeft, XCircle, Loader2, ArrowRight, CheckCircle } from "lucide-react"
 
 const statusColors: Record<string, string> = {
     pending: "bg-amber-500/20 text-amber-700 dark:text-amber-400",
-    preparing: "bg-blue-500/20 text-blue-700 dark:text-blue-400",
-    ready: "bg-green-500/20 text-green-700 dark:text-green-400",
-    served: "bg-purple-500/20 text-purple-700 dark:text-purple-400",
-    paid: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
+    confirmed: "bg-blue-500/20 text-blue-700 dark:text-blue-400",
+    completed: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
     cancelled: "bg-red-500/20 text-red-700 dark:text-red-400",
 }
 
@@ -66,19 +64,11 @@ export default function OrderDetailPage() {
                             {new Date(order.date).toLocaleString()}
                         </p>
                         <div className="flex gap-3 mt-2 text-sm text-muted-foreground">
-                            {order.table && (
-                                <span className="flex items-center gap-1">
-                                    <Table2 className="h-4 w-4" /> Table {order.table.number}
-                                </span>
-                            )}
-                            {order.waiter && (
-                                <span className="flex items-center gap-1">
-                                    <User className="h-4 w-4" /> {order.waiter.name}
-                                </span>
-                            )}
                         </div>
                     </div>
-                    <Badge className={statusColors[order.orderStatus]}>{order.orderStatus}</Badge>
+                    <Badge className={statusColors[order.orderStatus]}>
+                        {order.orderStatus === "pending" ? "En attente" : order.orderStatus === "confirmed" ? "Confirmé" : order.orderStatus === "completed" ? "Terminé" : "Annulé"}
+                    </Badge>
                 </CardHeader>
                 <CardContent>
                     <Separator className="mb-4" />
@@ -104,32 +94,22 @@ export default function OrderDetailPage() {
                         <span>{formatCurrency(Number(order.total))}</span>
                     </div>
 
-                    {!["paid", "cancelled"].includes(order.orderStatus) && (
+                    {!["completed", "cancelled"].includes(order.orderStatus) && (
                         <>
                             <Separator className="my-4" />
                             <div className="flex flex-wrap gap-2">
                                 {order.orderStatus === "pending" && (
-                                    <Button onClick={() => updateStatus("preparing")} disabled={updating} className="flex-1">
-                                        <ChefHat className="h-4 w-4 mr-2" /> Commencer la préparation
+                                    <Button onClick={() => updateStatus("confirmed")} disabled={updating} className="flex-1">
+                                        <ArrowRight className="h-4 w-4 mr-2" /> Confirmer la commande
                                     </Button>
                                 )}
-                                {order.orderStatus === "preparing" && (
-                                    <Button onClick={() => updateStatus("ready")} disabled={updating} className="flex-1">
-                                        <Bell className="h-4 w-4 mr-2" /> Marquer prêt
-                                    </Button>
-                                )}
-                                {order.orderStatus === "ready" && (
-                                    <Button onClick={() => updateStatus("served")} disabled={updating} className="flex-1">
-                                        <Utensils className="h-4 w-4 mr-2" /> Marquer servi
-                                    </Button>
-                                )}
-                                {order.orderStatus === "served" && (
+                                {order.orderStatus === "confirmed" && (
                                     <div className="w-full space-y-2">
                                         <p className="text-sm font-medium">Paiement</p>
                                         <div className="flex gap-2">
-                                            <Button onClick={() => updateStatus("paid", "cash")} disabled={updating} className="flex-1">Espèces</Button>
-                                            <Button onClick={() => updateStatus("paid", "card")} disabled={updating} className="flex-1">Carte</Button>
-                                            <Button onClick={() => updateStatus("paid", "credit")} disabled={updating} className="flex-1">Crédit</Button>
+                                            <Button onClick={() => updateStatus("completed", "cash")} disabled={updating} className="flex-1">Espèces</Button>
+                                            <Button onClick={() => updateStatus("completed", "card")} disabled={updating} className="flex-1">Carte</Button>
+                                            <Button onClick={() => updateStatus("completed", "credit")} disabled={updating} className="flex-1">Crédit</Button>
                                         </div>
                                     </div>
                                 )}

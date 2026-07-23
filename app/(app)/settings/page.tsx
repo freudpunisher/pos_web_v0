@@ -17,14 +17,18 @@ import {
   DialogTrigger,
 } from "@/components/ui/dialog"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Store, Tag, Shield, Plus, Trash2, Save, Loader2, Search, Pencil, Ruler, MapPin, Layers, Building2 } from "lucide-react"
+import { Store, Tag, Shield, Plus, Trash2, Save, Loader2, Search, Pencil, Ruler, MapPin, Layers, Building2, Package, Tags } from "lucide-react"
+import { Badge } from "@/components/ui/badge"
 import { useSettings } from "@/hooks/use-settings"
 import { useCategories } from "@/hooks/use-products"
 import { useUnits } from "@/hooks/use-units"
 import { useLocations } from "@/hooks/use-locations"
 import { useCategoryGroups } from "@/hooks/use-category-groups"
+import { useProductTypes } from "@/hooks/use-product-types"
+import { useSubcategories } from "@/hooks/use-subcategories"
 import { cn } from "@/lib/utils"
 import { UserManagement } from "@/components/user-management"
+import { UserLocationManager } from "@/components/user-location-manager"
 import { useSuppliers } from "@/hooks/use-suppliers"
 import { SupplierFormDialog } from "@/components/inventory/supplier-form-dialog"
 import Swal from "sweetalert2"
@@ -49,8 +53,14 @@ type Unit = {
   symbol?: string
 }
 
-const LOCATION_TYPES = ["principal", "transitional", "bar", "kitchen"] as const
+const LOCATION_TYPES = ["primary", "store", "branch", "delivery_point"] as const
 type LocationType = typeof LOCATION_TYPES[number]
+const LOCATION_LABELS: Record<LocationType, string> = {
+  primary: "Principal",
+  store: "Magasin",
+  branch: "Succursale",
+  delivery_point: "Point de livraison",
+}
 
 export default function SettingsPage() {
   const { settings, loading: settingsLoading, error: settingsError, refresh: refreshSettings, updateSettings } = useSettings()
@@ -59,9 +69,20 @@ export default function SettingsPage() {
   const { locations, loading: locationsLoading, createLocation, updateLocation, deleteLocation } = useLocations()
   const { groups: categoryGroups, loading: catGroupsLoading, createGroup, updateGroup, deleteGroup } = useCategoryGroups()
   const { suppliers, loading: suppliersLoading, createSupplier, updateSupplier, toggleSupplierStatus } = useSuppliers()
+  const { types: productTypes, loading: productTypesLoading, createType, updateType, deleteType } = useProductTypes()
+  const { subcategories, loading: subcategoriesLoading, createSubcategory, updateSubcategory, deleteSubcategory } = useSubcategories()
 
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null)
+  const [newProductType, setNewProductType] = useState({ name: "", icon: "Package", color: "bg-gray-500/20 text-gray-700" })
+  const [showAddProductType, setShowAddProductType] = useState(false)
+  const [editProductType, setEditProductType] = useState<any>(null)
+  const [showEditProductType, setShowEditProductType] = useState(false)
+  const [newSubcategory, setNewSubcategory] = useState({ name: "", productTypeId: "" })
+  const [showAddSubcategory, setShowAddSubcategory] = useState(false)
+  const [editSubcategory, setEditSubcategory] = useState<any>(null)
+  const [showEditSubcategory, setShowEditSubcategory] = useState(false)
+  const [subcategoryTypeFilter, setSubcategoryTypeFilter] = useState<string>("all")
 
   const [storeInfo, setStoreInfo] = useState<any>(null)
   const [newCategory, setNewCategory] = useState({ name: "", description: "", groupId: null as string | null })
@@ -80,7 +101,7 @@ export default function SettingsPage() {
 
   // Locations state
   const [locationSearch, setLocationSearch] = useState("")
-  const [newLocation, setNewLocation] = useState({ name: "", type: "bar" as LocationType })
+  const [newLocation, setNewLocation] = useState({ name: "", type: "store" as LocationType })
   const [showAddLocation, setShowAddLocation] = useState(false)
   const [editLocation, setEditLocation] = useState<any>(null)
   const [showEditLocation, setShowEditLocation] = useState(false)
@@ -286,7 +307,7 @@ export default function SettingsPage() {
     if (!newLocation.name.trim()) return
     try {
       await createLocation(newLocation)
-      setNewLocation({ name: "", type: "bar" })
+      setNewLocation({ name: "", type: "store" })
       setShowAddLocation(false)
       await Swal.fire({ icon: "success", title: "Emplacement ajouté", timer: 1500, showConfirmButton: false })
     } catch {
@@ -313,8 +334,82 @@ export default function SettingsPage() {
   const filteredLocations = locations.filter((loc) => {
     const s = locationSearch.trim().toLowerCase()
     if (!s) return true
-    return loc.name?.toLowerCase().includes(s) || loc.type?.toLowerCase().includes(s)
+    return loc.name?.toLowerCase().includes(s) || loc.type?.toLowerCase().includes(s) || (LOCATION_LABELS[loc.type as LocationType] ?? "").toLowerCase().includes(s)
   })
+
+  const handleAddProductType = async () => {
+    if (!newProductType.name.trim()) return
+    try {
+      await createType(newProductType)
+      setNewProductType({ name: "", icon: "Package", color: "bg-gray-500/20 text-gray-700" })
+      setShowAddProductType(false)
+      await Swal.fire({ icon: "success", title: "Type ajouté", timer: 1500, showConfirmButton: false })
+    } catch {
+      await Swal.fire({ icon: "error", title: "Échec de l'ajout du type" })
+    }
+  }
+
+  const handleUpdateProductType = async () => {
+    if (!editProductType?.name?.trim()) return
+    try {
+      await updateType(editProductType.id, { name: editProductType.name, icon: editProductType.icon, color: editProductType.color, sortOrder: editProductType.sortOrder, isActive: editProductType.isActive })
+      setShowEditProductType(false)
+      setEditProductType(null)
+      await Swal.fire({ icon: "success", title: "Type mis à jour", timer: 1500, showConfirmButton: false })
+    } catch {
+      await Swal.fire({ icon: "error", title: "Échec de la mise à jour du type" })
+    }
+  }
+
+  const handleDeleteProductType = async (id: string) => {
+    const result = await Swal.fire({ title: "Supprimer ce type ?", icon: "warning", showCancelButton: true, confirmButtonColor: "#d33", confirmButtonText: "Supprimer", cancelButtonText: "Annuler" })
+    if (result.isConfirmed) {
+      try {
+        await deleteType(id)
+        await Swal.fire({ icon: "success", title: "Type supprimé", timer: 1500, showConfirmButton: false })
+      } catch {
+        await Swal.fire({ icon: "error", title: "Échec de la suppression" })
+      }
+    }
+  }
+
+  const handleAddSubcategory = async () => {
+    if (!newSubcategory.name.trim() || !newSubcategory.productTypeId) return
+    try {
+      await createSubcategory(newSubcategory)
+      setNewSubcategory({ name: "", productTypeId: "" })
+      setShowAddSubcategory(false)
+      await Swal.fire({ icon: "success", title: "Sous-catégorie ajoutée", timer: 1500, showConfirmButton: false })
+    } catch {
+      await Swal.fire({ icon: "error", title: "Échec de l'ajout" })
+    }
+  }
+
+  const handleUpdateSubcategory = async () => {
+    if (!editSubcategory?.name?.trim()) return
+    try {
+      await updateSubcategory(editSubcategory.id, { name: editSubcategory.name, productTypeId: editSubcategory.productTypeId, sortOrder: editSubcategory.sortOrder, isActive: editSubcategory.isActive })
+      setShowEditSubcategory(false)
+      setEditSubcategory(null)
+      await Swal.fire({ icon: "success", title: "Sous-catégorie mise à jour", timer: 1500, showConfirmButton: false })
+    } catch {
+      await Swal.fire({ icon: "error", title: "Échec de la mise à jour" })
+    }
+  }
+
+  const handleDeleteSubcategory = async (id: string) => {
+    const result = await Swal.fire({ title: "Supprimer ?", icon: "warning", showCancelButton: true, confirmButtonColor: "#d33", confirmButtonText: "Supprimer", cancelButtonText: "Annuler" })
+    if (result.isConfirmed) {
+      try {
+        await deleteSubcategory(id)
+        await Swal.fire({ icon: "success", title: "Supprimée", timer: 1500, showConfirmButton: false })
+      } catch {
+        await Swal.fire({ icon: "error", title: "Échec de la suppression" })
+      }
+    }
+  }
+
+  const filteredSubcategories = subcategories.filter((s) => subcategoryTypeFilter === "all" || s.productTypeId === subcategoryTypeFilter)
 
   // ----- / Location handlers -----
 
@@ -421,13 +516,16 @@ export default function SettingsPage() {
       </div>
 
       <Tabs defaultValue="store">
-        <TabsList className="grid w-full grid-cols-8 lg:w-auto lg:inline-grid">
+        <TabsList className="grid w-full grid-cols-11 lg:w-auto lg:inline-grid">
           <TabsTrigger value="store">Infos boutique</TabsTrigger>
+          <TabsTrigger value="product-types">Types produits</TabsTrigger>
+          <TabsTrigger value="subcategories">Sous-catégories</TabsTrigger>
           <TabsTrigger value="categories">Catégories</TabsTrigger>
           <TabsTrigger value="category-groups">Groupes</TabsTrigger>
           <TabsTrigger value="units">Unités</TabsTrigger>
           <TabsTrigger value="suppliers">Fournisseurs</TabsTrigger>
           <TabsTrigger value="locations">Emplacements</TabsTrigger>
+          <TabsTrigger value="cashier-locations">Emplacements Caissiers</TabsTrigger>
           <TabsTrigger value="menus">Permissions des menus</TabsTrigger>
           <TabsTrigger value="users">Utilisateurs & Rôles</TabsTrigger>
         </TabsList>
@@ -541,6 +639,334 @@ export default function SettingsPage() {
               </div>
             </CardContent>
           </Card>
+        </TabsContent>
+
+        {/* Product Types */}
+        <TabsContent value="product-types" className="mt-4">
+          <Card className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-col gap-4 border-b border-border/40 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Package className="h-5 w-5 text-primary" />
+                  Types de produits
+                </CardTitle>
+                <CardDescription>Gérer les types de produits (vêtements, chaussures, accessoires, etc.)</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Dialog open={showAddProductType} onOpenChange={setShowAddProductType}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Ajouter un type
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Ajouter un type de produit</DialogTitle>
+                      <DialogDescription>Créer un nouveau type de produit</DialogDescription>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Nom</Label>
+                        <Input
+                          placeholder="ex. Vêtement"
+                          value={newProductType.name}
+                          onChange={(e) => setNewProductType({ ...newProductType, name: e.target.value })}
+                        />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowAddProductType(false)}>Annuler</Button>
+                      <Button onClick={handleAddProductType}>Ajouter</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="rounded-md border border-border/60">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-border/60 bg-muted/30">
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Nom</TableHead>
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Icône</TableHead>
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Statut</TableHead>
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider w-32 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {productTypesLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                        </TableCell>
+                      </TableRow>
+                    ) : productTypes.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                          Aucun type trouvé
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      productTypes.map((type) => (
+                        <TableRow key={type.id} className="border-border/60 hover:bg-muted/20 transition-colors">
+                          <TableCell className="font-medium">{type.name}</TableCell>
+                          <TableCell className="text-muted-foreground">{type.icon || "-"}</TableCell>
+                          <TableCell>
+                            <span className={cn(
+                              "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                              type.isActive
+                                ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                : "bg-muted text-muted-foreground"
+                            )}>
+                              {type.isActive ? "Actif" : "Inactif"}
+                            </span>
+                          </TableCell>
+                          <TableCell className="text-right">
+                            <div className="flex items-center justify-end gap-1">
+                              <Button
+                                variant="ghost" size="icon"
+                                className="h-8 w-8 text-muted-foreground hover:text-primary hover:bg-primary/10"
+                                title="Modifier"
+                                onClick={() => { setEditProductType({ ...type }); setShowEditProductType(true) }}
+                              >
+                                <Pencil className="h-4 w-4" />
+                              </Button>
+                              <Button
+                                variant="ghost" size="icon"
+                                className="h-8 w-8 text-destructive hover:bg-destructive/10"
+                                title="Supprimer"
+                                onClick={() => handleDeleteProductType(type.id)}
+                              >
+                                <Trash2 className="h-4 w-4" />
+                              </Button>
+                            </div>
+                          </TableCell>
+                        </TableRow>
+                      ))
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Dialog open={showEditProductType} onOpenChange={(open) => { setShowEditProductType(open); if (!open) setEditProductType(null) }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Modifier le type de produit</DialogTitle>
+                <DialogDescription>Mettre à jour les détails du type</DialogDescription>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Nom</Label>
+                  <Input
+                    placeholder="ex. Vêtement"
+                    value={editProductType?.name ?? ""}
+                    onChange={(e) => setEditProductType((prev: any) => prev ? { ...prev, name: e.target.value } : prev)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Icône</Label>
+                  <Input
+                    placeholder="ex. Shirt"
+                    value={editProductType?.icon ?? ""}
+                    onChange={(e) => setEditProductType((prev: any) => prev ? { ...prev, icon: e.target.value } : prev)}
+                  />
+                </div>
+                <div className="space-y-2">
+                  <Label>Ordre d'affichage</Label>
+                  <Input
+                    type="number"
+                    value={editProductType?.sortOrder ?? 0}
+                    onChange={(e) => setEditProductType((prev: any) => prev ? { ...prev, sortOrder: parseInt(e.target.value) || 0 } : prev)}
+                  />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Label>Actif</Label>
+                  <button
+                    type="button"
+                    role="switch"
+                    aria-checked={editProductType?.isActive ?? true}
+                    onClick={() => setEditProductType((prev: any) => prev ? { ...prev, isActive: !prev.isActive } : prev)}
+                    className={cn(
+                      "relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none",
+                      editProductType?.isActive ? "bg-primary" : "bg-muted"
+                    )}
+                  >
+                    <span className={cn(
+                      "inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform",
+                      editProductType?.isActive ? "translate-x-6" : "translate-x-1"
+                    )} />
+                  </button>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditProductType(false)}>Annuler</Button>
+                <Button onClick={handleUpdateProductType}>Enregistrer les modifications</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
+        </TabsContent>
+
+        {/* Subcategories */}
+        <TabsContent value="subcategories" className="mt-4">
+          <Card className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow">
+            <CardHeader className="flex flex-col gap-4 border-b border-border/40 sm:flex-row sm:items-center sm:justify-between">
+              <div>
+                <CardTitle className="flex items-center gap-2 text-lg">
+                  <Tags className="h-5 w-5 text-primary" />
+                  Sous-catégories
+                </CardTitle>
+                <CardDescription>Gérer les sous-catégories par type de produit (ex: Vêtement → Pantalon, Chemise)</CardDescription>
+              </div>
+              <div className="flex flex-wrap items-center gap-2">
+                <Select value={subcategoryTypeFilter} onValueChange={setSubcategoryTypeFilter}>
+                  <SelectTrigger className="w-[180px]">
+                    <SelectValue placeholder="Tous les types" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les types</SelectItem>
+                    {productTypes.map((t) => (
+                      <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+                <Dialog open={showAddSubcategory} onOpenChange={setShowAddSubcategory}>
+                  <DialogTrigger asChild>
+                    <Button>
+                      <Plus className="mr-2 h-4 w-4" />
+                      Ajouter
+                    </Button>
+                  </DialogTrigger>
+                  <DialogContent>
+                    <DialogHeader>
+                      <DialogTitle>Ajouter une sous-catégorie</DialogTitle>
+                    </DialogHeader>
+                    <div className="space-y-4 py-4">
+                      <div className="space-y-2">
+                        <Label>Type de produit</Label>
+                        <Select value={newSubcategory.productTypeId} onValueChange={(v) => setNewSubcategory({ ...newSubcategory, productTypeId: v })}>
+                          <SelectTrigger><SelectValue placeholder="Choisir un type" /></SelectTrigger>
+                          <SelectContent>
+                            {productTypes.map((t) => (
+                              <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                            ))}
+                          </SelectContent>
+                        </Select>
+                      </div>
+                      <div className="space-y-2">
+                        <Label>Nom</Label>
+                        <Input placeholder="ex. Pantalon" value={newSubcategory.name} onChange={(e) => setNewSubcategory({ ...newSubcategory, name: e.target.value })} />
+                      </div>
+                    </div>
+                    <DialogFooter>
+                      <Button variant="outline" onClick={() => setShowAddSubcategory(false)}>Annuler</Button>
+                      <Button onClick={handleAddSubcategory}>Ajouter</Button>
+                    </DialogFooter>
+                  </DialogContent>
+                </Dialog>
+              </div>
+            </CardHeader>
+            <CardContent className="p-0">
+              <div className="rounded-md border border-border/60">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="hover:bg-transparent border-border/60 bg-muted/30">
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Type</TableHead>
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Nom</TableHead>
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider">Statut</TableHead>
+                      <TableHead className="text-muted-foreground font-semibold text-xs uppercase tracking-wider w-32 text-right">Actions</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {subcategoriesLoading ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center">
+                          <Loader2 className="h-6 w-6 animate-spin mx-auto text-primary" />
+                        </TableCell>
+                      </TableRow>
+                    ) : filteredSubcategories.length === 0 ? (
+                      <TableRow>
+                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                          Aucune sous-catégorie trouvée
+                        </TableCell>
+                      </TableRow>
+                    ) : (
+                      filteredSubcategories.map((sub) => {
+                        const parentType = productTypes.find((t) => t.id === sub.productTypeId)
+                        return (
+                          <TableRow key={sub.id} className="border-border/60 hover:bg-muted/20 transition-colors">
+                            <TableCell>
+                              <Badge className={parentType?.color || "bg-gray-500/20 text-gray-700"}>{parentType?.name || "—"}</Badge>
+                            </TableCell>
+                            <TableCell className="font-medium">{sub.name}</TableCell>
+                            <TableCell>
+                              <span className={cn(
+                                "inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold",
+                                sub.isActive
+                                  ? "bg-emerald-100 text-emerald-700 dark:bg-emerald-900/30 dark:text-emerald-400"
+                                  : "bg-muted text-muted-foreground"
+                              )}>
+                                {sub.isActive ? "Actif" : "Inactif"}
+                              </span>
+                            </TableCell>
+                            <TableCell className="text-right">
+                              <div className="flex items-center justify-end gap-1">
+                                <Button variant="ghost" size="icon" className="h-8 w-8" title="Modifier" onClick={() => { setEditSubcategory({ ...sub }); setShowEditSubcategory(true) }}>
+                                  <Pencil className="h-4 w-4" />
+                                </Button>
+                                <Button variant="ghost" size="icon" className="h-8 w-8 text-destructive" title="Supprimer" onClick={() => handleDeleteSubcategory(sub.id)}>
+                                  <Trash2 className="h-4 w-4" />
+                                </Button>
+                              </div>
+                            </TableCell>
+                          </TableRow>
+                        )
+                      })
+                    )}
+                  </TableBody>
+                </Table>
+              </div>
+            </CardContent>
+          </Card>
+
+          <Dialog open={showEditSubcategory} onOpenChange={(open) => { setShowEditSubcategory(open); if (!open) setEditSubcategory(null) }}>
+            <DialogContent>
+              <DialogHeader>
+                <DialogTitle>Modifier la sous-catégorie</DialogTitle>
+              </DialogHeader>
+              <div className="space-y-4 py-4">
+                <div className="space-y-2">
+                  <Label>Type de produit</Label>
+                  <Select value={editSubcategory?.productTypeId || ""} onValueChange={(v) => setEditSubcategory((prev: any) => prev ? { ...prev, productTypeId: v } : prev)}>
+                    <SelectTrigger><SelectValue /></SelectTrigger>
+                    <SelectContent>
+                      {productTypes.map((t) => (
+                        <SelectItem key={t.id} value={t.id}>{t.name}</SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+                <div className="space-y-2">
+                  <Label>Nom</Label>
+                  <Input value={editSubcategory?.name || ""} onChange={(e) => setEditSubcategory((prev: any) => prev ? { ...prev, name: e.target.value } : prev)} />
+                </div>
+                <div className="flex items-center gap-3">
+                  <Label>Actif</Label>
+                  <button type="button" role="switch" aria-checked={editSubcategory?.isActive ?? true}
+                    onClick={() => setEditSubcategory((prev: any) => prev ? { ...prev, isActive: !prev.isActive } : prev)}
+                    className={cn("relative inline-flex h-6 w-11 items-center rounded-full transition-colors focus:outline-none", editSubcategory?.isActive ? "bg-primary" : "bg-muted")}>
+                    <span className={cn("inline-block h-4 w-4 transform rounded-full bg-white shadow transition-transform", editSubcategory?.isActive ? "translate-x-6" : "translate-x-1")} />
+                  </button>
+                </div>
+              </div>
+              <DialogFooter>
+                <Button variant="outline" onClick={() => setShowEditSubcategory(false)}>Annuler</Button>
+                <Button onClick={handleUpdateSubcategory}>Enregistrer</Button>
+              </DialogFooter>
+            </DialogContent>
+          </Dialog>
         </TabsContent>
 
         {/* Categories */}
@@ -1141,6 +1567,11 @@ export default function SettingsPage() {
           </Dialog>
         </TabsContent>
 
+        {/* Cashier Locations */}
+        <TabsContent value="cashier-locations" className="mt-4">
+          <UserLocationManager />
+        </TabsContent>
+
         {/* Menu Permissions */}
         <TabsContent value="menus" className="mt-4">
           <Card className="border-border/60 bg-card shadow-sm hover:shadow-md transition-shadow">
@@ -1195,7 +1626,7 @@ export default function SettingsPage() {
                         return (
                           <TableRow key={item.id} className="border-border/60 hover:bg-muted/20 transition-colors">
                             <TableCell className="font-medium">{item.label}</TableCell>
-                            {["admin", "manager", "stock_manager", "cashier", "waiter"].map((role) => (
+                            {["admin", "manager", "stock_manager", "cashier"].map((role) => (
                               <TableCell key={role}>
                                 <Button
                                   variant={roles.includes(role) ? "default" : "outline"}
@@ -1335,7 +1766,7 @@ export default function SettingsPage() {
                   <MapPin className="h-5 w-5 text-primary" />
                   Emplacements
                 </CardTitle>
-                <CardDescription>Gérer les entrepôts, bars, cuisines et points de transit</CardDescription>
+                <CardDescription>Gérer les entrepôts, magasins, succursales et points de livraison</CardDescription>
               </div>
               <div className="flex flex-wrap items-center gap-2">
                 <div className="relative w-56">
@@ -1377,7 +1808,7 @@ export default function SettingsPage() {
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
                             {LOCATION_TYPES.map((t) => (
-                              <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                              <SelectItem key={t} value={t}>{LOCATION_LABELS[t]}</SelectItem>
                             ))}
                           </SelectContent>
                         </Select>
@@ -1419,9 +1850,9 @@ export default function SettingsPage() {
                       filteredLocations.map((loc) => (
                         <TableRow key={loc.id} className="border-border/60 hover:bg-muted/20 transition-colors">
                           <TableCell className="font-medium">{loc.name}</TableCell>
-                          <TableCell>
-                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold capitalize bg-primary/10 text-primary">
-                              {loc.type}
+                           <TableCell>
+                            <span className="inline-flex items-center rounded-full px-2.5 py-0.5 text-xs font-semibold bg-primary/10 text-primary">
+                              {LOCATION_LABELS[loc.type as LocationType] ?? loc.type}
                             </span>
                           </TableCell>
                           <TableCell>
@@ -1474,13 +1905,13 @@ export default function SettingsPage() {
                 <div className="space-y-2">
                   <Label>Type</Label>
                   <Select
-                    value={editLocation?.type ?? "bar"}
+                    value={editLocation?.type ?? "store"}
                     onValueChange={(v) => setEditLocation((prev: any) => prev ? { ...prev, type: v } : prev)}
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
                       {LOCATION_TYPES.map((t) => (
-                        <SelectItem key={t} value={t} className="capitalize">{t}</SelectItem>
+                        <SelectItem key={t} value={t}>{LOCATION_LABELS[t]}</SelectItem>
                       ))}
                     </SelectContent>
                   </Select>

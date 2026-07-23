@@ -19,7 +19,7 @@ export default function BakeryPurchasesPage() {
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(10)
 
-  const bakeryOrders = orders.filter((o) => o.sector === "Boulangerie")
+  const bakeryOrders = orders
 
   const filteredOrders = useMemo(() => {
     const query = search.trim().toLowerCase()

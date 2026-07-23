@@ -34,7 +34,7 @@ export async function POST(request: Request) {
         }
 
         const result = await db.transaction(async (tx) => {
-            const shortages: { ingredientId: string; ingredientName: string; required: number; available: number; unit?: string | null }[] = []
+            const shortages: { ingredientId: string; ingredientName: string; required: number; available: number }[] = []
 
             // Create Recipe
             const [newRecipe] = await tx
@@ -74,7 +74,6 @@ export async function POST(request: Request) {
                         ingredientName: product?.name || "Ingrédient",
                         required: requiredQty,
                         available: availableQty,
-                        unit: product?.unit,
                     })
                 }
             }

@@ -12,9 +12,6 @@ export async function GET() {
         productId: products.id,
         name: products.name,
         sku: products.sku,
-        unit: products.unit,
-        sector: products.sector,
-        type: products.type,
         quantityOnHand: stock.quantityOnHand,
         reorderLevel: stock.reorderLevel,
         reorderQuantity: stock.reorderQuantity,
@@ -22,7 +19,6 @@ export async function GET() {
       })
       .from(stock)
       .leftJoin(products, eq(stock.productId, products.id))
-      .where(and(eq(products.type, "finished_good"), eq(products.sector, "Boulangerie")))
 
     return NextResponse.json(rows)
   } catch (error) {
@@ -48,11 +44,7 @@ export async function POST(request: Request) {
       const [product] = await tx.select().from(products).where(eq(products.id, productId))
       if (!product) throw new Error("Product not found")
 
-      if (product.type !== "finished_good" || product.sector !== "Boulangerie") {
-        throw new Error("Product must be a bakery finished good")
-      }
-
-      const warehouse = await resolveWarehouse(tx, 'food')
+      const warehouse = await resolveWarehouse(tx)
       const [stockRecord] = await tx.select().from(stock).where(and(eq(stock.productId, productId), eq(stock.locationId, warehouse.id)))
 
       if (stockRecord) {

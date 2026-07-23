@@ -8,7 +8,7 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Loader2, Beer, UtensilsCrossed, Printer } from "lucide-react"
+import { Loader2, Warehouse, Store, Printer } from "lucide-react"
 import { useTransactions } from "@/hooks/use-transactions"
 import { useProducts } from "@/hooks/use-products"
 import { useUsers } from "@/hooks/use-users"
@@ -173,22 +173,22 @@ export default function ReportsPage() {
 
   useEffect(() => { fetchTransactions() }, [fetchTransactions])
 
-  const barLocation = useMemo(() => locations.find(l => l.type === "bar"), [locations])
+  const storeLocation = useMemo(() => locations.find(l => l.type === "store"), [locations])
 
-  const { stockItems: barStock, loading: barLoading } = useStock(barLocation?.id, !!barLocation?.id)
+  const { stockItems: storeStock, loading: storeLoading } = useStock(storeLocation?.id, !!storeLocation?.id)
 
-  const barStockMap = useMemo(() => {
+  const storeStockMap = useMemo(() => {
     const map: Record<string, number> = {}
-    for (const s of barStock) map[s.productId] = Number(s.quantityOnHand)
+    for (const s of storeStock) map[s.productId] = Number(s.quantityOnHand)
     return map
-  }, [barStock])
+  }, [storeStock])
 
   const completedSales = useMemo(() =>
     transactions.filter((t: any) => t.type === "sale" && t.status === "completed"),
     [transactions]
   )
 
-  const isLoading = txLoading || productsLoading || barLoading
+  const isLoading = txLoading || productsLoading || storeLoading
 
   const filteredTransactions = useMemo(() => {
     return completedSales.filter((t: any) => {
@@ -238,7 +238,7 @@ export default function ReportsPage() {
         const pid = item.productId
         if (!map[pid]) {
           const prod = products.find((p: any) => p.id === pid)
-          map[pid] = { sold: 0, total: 0, name: item.productName || prod?.name || pid, type: prod?.productType || "" }
+          map[pid] = { sold: 0, total: 0, name: item.productName || prod?.name || pid, type: prod?.productTypeId || "" }
         }
         const qty = Number(item.quantity) || 0
         map[pid].sold += qty
@@ -248,17 +248,14 @@ export default function ReportsPage() {
     return map
   }, [filteredTransactions, products])
 
-  const barProducts = useMemo(() => {
+  const drinkProducts = useMemo(() => {
     return Object.entries(productSalesQty)
-      .filter(([_, v]) => v.type === "drink" || v.type === "others")
       .sort((a, b) => b[1].sold - a[1].sold)
   }, [productSalesQty])
 
   const foodProducts = useMemo(() => {
-    return Object.entries(productSalesQty)
-      .filter(([_, v]) => v.type === "food")
-      .sort((a, b) => b[1].sold - a[1].sold)
-  }, [productSalesQty])
+    return [] as [string, { sold: number; total: number; name: string; type: string }][]
+  }, [])
 
   const paymentTotals = useMemo(() => {
     const totals = { cash: 0, credit: 0, card: 0 }
@@ -271,9 +268,9 @@ export default function ReportsPage() {
     return totals
   }, [filteredTransactions])
 
-  const barGrandTotal = useMemo(() =>
-    barProducts.reduce((sum, [_, { total }]) => sum + total, 0),
-    [barProducts]
+  const drinkGrandTotal = useMemo(() =>
+    drinkProducts.reduce((sum, [_, { total }]) => sum + total, 0),
+    [drinkProducts]
   )
 
   const foodGrandTotal = useMemo(() =>
@@ -305,7 +302,7 @@ export default function ReportsPage() {
     const aligns = ["left", "right", "right", "right", "right"]
     const rows = barProducts.map(([_, { name, sold, total }]) => [
       name,
-      String(barStockMap[(_ as any)] ?? 0),
+      String(storeStockMap[(_ as any)] ?? 0),
       String(sold),
       fmt(sold > 0 ? total / sold : 0),
       fmt(total),
@@ -401,36 +398,36 @@ export default function ReportsPage() {
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <Tabs defaultValue="bar" className="space-y-4">
+        <Tabs defaultValue="drinks" className="space-y-4">
           <div className="flex items-center justify-between">
             <TabsList>
-              <TabsTrigger value="bar" className="gap-2">
-                <Beer className="h-4 w-4" />
-                Bar
+              <TabsTrigger value="drinks" className="gap-2">
+                <Store className="h-4 w-4" />
+                Boissons
               </TabsTrigger>
-              <TabsTrigger value="cuisine" className="gap-2">
-                <UtensilsCrossed className="h-4 w-4" />
-                Cuisine
+              <TabsTrigger value="food" className="gap-2">
+                <Warehouse className="h-4 w-4" />
+                Aliments
               </TabsTrigger>
             </TabsList>
             <div className="flex gap-2">
               <Button variant="outline" size="sm" onClick={handlePrintBar} className="gap-2">
                 <Printer className="h-4 w-4" />
-                Imprimer Bar
+                Imprimer Boissons
               </Button>
               <Button variant="outline" size="sm" onClick={handlePrintFood} className="gap-2">
                 <Printer className="h-4 w-4" />
-                Imprimer Cuisine
+                Imprimer Aliments
               </Button>
             </div>
           </div>
 
-          <TabsContent value="bar">
+          <TabsContent value="drinks">
             <Card className="border-border bg-card">
               <CardHeader className="border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <Beer className="h-5 w-5 text-primary" />
-                  Produits Bar
+                  <Store className="h-5 w-5 text-primary" />
+                  Produits Boissons
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -438,26 +435,26 @@ export default function ReportsPage() {
                   <TableHeader>
                     <TableRow className="bg-muted/30">
                       <TableHead className="text-xs uppercase tracking-wider">Produit</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Stock Bar</TableHead>
+                      <TableHead className="text-xs uppercase tracking-wider text-right">Stock Magasin</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-right">Qté vendue</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-right">Prix</TableHead>
                       <TableHead className="text-xs uppercase tracking-wider text-right">Total</TableHead>
                     </TableRow>
                   </TableHeader>
                   <TableBody>
-                    {barProducts.length === 0 ? (
+                    {drinkProducts.length === 0 ? (
                       <TableRow>
                         <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
                           Aucune vente trouvée
                         </TableCell>
                       </TableRow>
                     ) : (
-                      barProducts.map(([pid, { name, sold, total }]) => {
+                      drinkProducts.map(([pid, { name, sold, total }]) => {
                         const price = sold > 0 ? total / sold : 0
                         return (
                           <TableRow key={pid} className="border-border/60">
                             <TableCell className="font-medium">{name}</TableCell>
-                            <TableCell className="text-right">{barStockMap[pid] ?? 0}</TableCell>
+                            <TableCell className="text-right">{storeStockMap[pid] ?? 0}</TableCell>
                             <TableCell className="text-right">{sold}</TableCell>
                             <TableCell className="text-right">{fmt(price)}</TableCell>
                             <TableCell className="text-right font-semibold">{fmt(total)}</TableCell>
@@ -466,11 +463,11 @@ export default function ReportsPage() {
                       })
                     )}
                   </TableBody>
-                  {barProducts.length > 0 && (
+                  {drinkProducts.length > 0 && (
                     <TableFooter>
                       <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={4} className="text-right uppercase text-xs tracking-wider">Total Bar</TableCell>
-                        <TableCell className="text-right">{fmt(barGrandTotal)}</TableCell>
+                        <TableCell colSpan={4} className="text-right uppercase text-xs tracking-wider">Total Boissons</TableCell>
+                        <TableCell className="text-right">{fmt(drinkGrandTotal)}</TableCell>
                       </TableRow>
                     </TableFooter>
                   )}
@@ -479,12 +476,12 @@ export default function ReportsPage() {
             </Card>
           </TabsContent>
 
-          <TabsContent value="cuisine">
+          <TabsContent value="food">
             <Card className="border-border bg-card">
               <CardHeader className="border-b border-border">
                 <CardTitle className="flex items-center gap-2 text-lg">
-                  <UtensilsCrossed className="h-5 w-5 text-primary" />
-                  Produits Cuisine
+                  <Warehouse className="h-5 w-5 text-primary" />
+                  Produits Aliments
                 </CardTitle>
               </CardHeader>
               <CardContent className="p-0">
@@ -521,7 +518,7 @@ export default function ReportsPage() {
                   {foodProducts.length > 0 && (
                     <TableFooter>
                       <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={3} className="text-right uppercase text-xs tracking-wider">Total Cuisine</TableCell>
+                        <TableCell colSpan={3} className="text-right uppercase text-xs tracking-wider">Total Aliments</TableCell>
                         <TableCell className="text-right">{fmt(foodGrandTotal)}</TableCell>
                       </TableRow>
                     </TableFooter>

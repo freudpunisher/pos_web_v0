@@ -14,23 +14,18 @@ export async function PUT(
 
         const { id } = await params
         const body = await request.json()
-        const { name, categoryId, productType, price, cost, minStock, unit, trackStock, image, sector, quantityPerBox, sellingUnits } = body
+        const { name, productTypeId, subcategoryId, price, cost, minStock, sellingUnits } = body
 
         const result = await db.transaction(async (tx) => {
             const [updatedProduct] = await tx
                 .update(products)
                 .set({
                     name,
-                    categoryId,
-                    productType,
+                    productTypeId: productTypeId || null,
+                    subcategoryId: subcategoryId || null,
                     price: price?.toString(),
                     cost: cost ? cost.toString() : undefined,
                     minStock,
-                    unit,
-                    trackStock,
-                    image,
-                    sector,
-                    quantityPerBox: quantityPerBox || 1,
                 })
                 .where(eq(products.id, id))
                 .returning()

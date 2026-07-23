@@ -9,50 +9,51 @@ const uuid = () =>
 import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
-import { useProducts } from "@/hooks/use-products"
 import { useLocations } from "@/hooks/use-locations"
-import { useUsers } from "@/hooks/use-users"
 import { useStockTransfers } from "@/hooks/use-stock-transfers"
+import { useAuth } from "@/lib/auth-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
+import { ToggleGroup, ToggleGroupItem } from "@/components/ui/toggle-group"
 import { Input } from "@/components/ui/input"
 import { Textarea } from "@/components/ui/textarea"
-import { Separator } from "@/components/ui/separator"
 import {
-    ArrowRightLeft, Loader2, Plus, Trash2, Package,
-    Warehouse, Store, FileText, Send, AlertCircle, ChevronLeft, ShoppingCart
+    ArrowRightLeft, Loader2, Plus, Trash2,
+    Warehouse, Store, MapPin, FileText, Send, AlertCircle, ChevronLeft, ShoppingCart, Building2
 } from "lucide-react"
 
 interface LineItem {
     key: string
     productId: string
-    productType: string
     quantity: number
-    boxes: number
-    quantityPerBox: number
+}
+
+const LOCATION_ICONS: Record<string, any> = {
+    primary: Warehouse,
+    store: Store,
+    branch: MapPin,
+    delivery_point: Building2,
 }
 
 export default function NewTransferPage() {
     const router = useRouter()
-    const { products } = useProducts()
     const { locations } = useLocations()
-    const { users } = useUsers()
-    const { createTransfer } = useStockTransfers()
+    const { user } = useAuth()
+    const { createTransfer, createDirectTransfer } = useStockTransfers()
     const [submitting, setSubmitting] = useState(false)
+    const [transferType, setTransferType] = useState<"direct" | "demand">("direct")
 
     const [fromLocationId, setFromLocationId] = useState("")
     const [toLocationId, setToLocationId] = useState("")
     const [notes, setNotes] = useState("")
     const [lineItems, setLineItems] = useState<LineItem[]>([
-        { key: uuid(), productId: "", productType: "", quantity: 0, boxes: 0, quantityPerBox: 1 },
+        { key: uuid(), productId: "", quantity: 0 },
     ])
     const [stockByLocation, setStockByLocation] = useState<any[]>([])
     const [loadingStock, setLoadingStock] = useState(false)
-
-    const currentUserId = users[0]?.id || ""
 
     useEffect(() => {
         if (!fromLocationId) { setStockByLocation([]); return }
@@ -66,10 +67,7 @@ export default function NewTransferPage() {
 
     const availableProducts = useMemo(() =>
         stockByLocation
-            .filter((s: any) =>
-                s.product?.productType === "ingredient" ||
-                (s.product?.productType === "drink" && s.product?.trackStock)
-            )
+            .filter((s: any) => s.quantityOnHand > 0)
             .map((s: any) => ({ ...s.product, availableQty: s.quantityOnHand })),
         [stockByLocation]
     )
@@ -100,52 +98,24 @@ export default function NewTransferPage() {
         return true
     }, [fromLocationId, toLocationId, lineItems, totalRequestedByProduct])
 
-    const principalLocations = locations.filter((l: any) => l.type === "principal")
-    const transitionalLocations = locations.filter((l: any) => l.type === "transitional")
-    const barLocations = locations.filter((l: any) => l.type === "bar")
-    const kitchenLocations = locations.filter((l: any) => l.type === "kitchen")
+    const activeLocations = useMemo(() => locations.filter((l: any) => l.isActive), [locations])
+    const destinationLocations = useMemo(
+        () => activeLocations.filter((l: any) => l.id !== fromLocationId),
+        [activeLocations, fromLocationId]
+    )
 
-    const addLineItem = () => setLineItems([...lineItems, { key: uuid(), productId: "", productType: "", quantity: 0, boxes: 0, quantityPerBox: 1 }])
+    const fromLocation = activeLocations.find((l: any) => l.id === fromLocationId)
+    const toLocation = activeLocations.find((l: any) => l.id === toLocationId)
+    const FromIcon = LOCATION_ICONS[fromLocation?.type] || Warehouse
+    const ToIcon = LOCATION_ICONS[toLocation?.type] || Store
 
+    const addLineItem = () => setLineItems([...lineItems, { key: uuid(), productId: "", quantity: 0 }])
     const removeLineItem = (key: string) => lineItems.length > 1 && setLineItems(lineItems.filter((i) => i.key !== key))
 
-    const updateLineItem = (key: string, field: keyof LineItem, value: any) =>
-        setLineItems(lineItems.map((i) => (i.key === key ? { ...i, [field]: value } : i)))
-
     const handleProductSelect = (key: string, productId: string) => {
-        const product = products.find((p) => p.id === productId)
-        if (!product) return
-        const isDrink = product.productType === "drink"
-        const qpb = product.quantityPerBox || 1
         setLineItems((prev) =>
-            prev.map((i) =>
-                i.key === key
-                    ? {
-                        ...i,
-                        productId,
-                        productType: product.productType,
-                        boxes: isDrink ? 1 : 0,
-                        quantityPerBox: qpb,
-                        quantity: isDrink ? qpb : 0,
-                    }
-                    : i
-            )
+            prev.map((i) => i.key === key ? { ...i, productId, quantity: 0 } : i)
         )
-    }
-
-    const updateBoxes = (key: string, newBoxes: number) => {
-        const bxs = Math.max(0, newBoxes)
-        if (bxs === 0) {
-            setLineItems((prev) => prev.filter((i) => i.key !== key))
-        } else {
-            setLineItems((prev) =>
-                prev.map((i) =>
-                    i.key === key
-                        ? { ...i, boxes: bxs, quantity: bxs * i.quantityPerBox }
-                        : i
-                )
-            )
-        }
     }
 
     const updateUnitQty = (key: string, newQty: number) => {
@@ -153,18 +123,20 @@ export default function NewTransferPage() {
         if (qty === 0) {
             setLineItems((prev) => prev.filter((i) => i.key !== key))
         } else {
-            setLineItems((prev) =>
-                prev.map((i) => (i.key === key ? { ...i, quantity: qty } : i))
-            )
+            setLineItems((prev) => prev.map((i) => (i.key === key ? { ...i, quantity: qty } : i)))
         }
     }
 
     const handleSubmit = async () => {
         const items = lineItems.filter((i) => i.productId && i.quantity > 0).map((i) => ({ productId: i.productId, quantity: i.quantity }))
-        if (!items.length || !currentUserId) return
+        if (!items.length || !user?.id) return
         setSubmitting(true)
         try {
-            await createTransfer({ fromLocationId, toLocationId, userId: currentUserId, notes, items })
+            if (transferType === "direct") {
+                await createDirectTransfer({ fromLocationId, toLocationId, userId: user.id, notes, items })
+            } else {
+                await createTransfer({ fromLocationId, toLocationId, userId: user.id, notes, items })
+            }
             router.push("/stock/transfers")
         } catch (err: any) { alert(err.message) }
         finally { setSubmitting(false) }
@@ -172,12 +144,9 @@ export default function NewTransferPage() {
 
     return (
         <div className="max-w-3xl mx-auto space-y-6">
-            {/* Header */}
             <div className="flex items-center gap-4">
                 <Button variant="ghost" size="icon" asChild>
-                    <Link href="/stock/transfers">
-                        <ChevronLeft className="h-5 w-5" />
-                    </Link>
+                    <Link href="/stock/transfers"><ChevronLeft className="h-5 w-5" /></Link>
                 </Button>
                 <div>
                     <h1 className="text-2xl font-bold tracking-tight">Nouveau transfert</h1>
@@ -193,26 +162,49 @@ export default function NewTransferPage() {
                             <ArrowRightLeft className="h-4 w-4" /> Itinéraire
                         </CardTitle>
                         <CardDescription>Choisissez la provenance et la destination du stock</CardDescription>
+                        <div className="mt-4 flex flex-col gap-3 rounded-xl border border-border bg-muted p-4 sm:flex-row sm:items-center sm:justify-between">
+                            <div>
+                                <p className="text-sm font-medium">Mode de transfert</p>
+                                <p className="text-sm text-muted-foreground">
+                                    {transferType === "direct"
+                                        ? "Le transfert sera appliqué immédiatement entre les emplacements."
+                                        : "La demande sera envoyée pour approbation avant exécution."}
+                                </p>
+                            </div>
+                            <ToggleGroup
+                                type="single"
+                                value={transferType}
+                                onValueChange={(value) => value && setTransferType(value as "direct" | "demand")}
+                                variant="outline"
+                                size="sm"
+                                className="bg-muted"
+                            >
+                                <ToggleGroupItem value="direct">Direct</ToggleGroupItem>
+                                <ToggleGroupItem value="demand">Demande</ToggleGroupItem>
+                            </ToggleGroup>
+                        </div>
                     </CardHeader>
                     <CardContent>
                         <div className="grid grid-cols-[1fr,auto,1fr] items-end gap-4">
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium flex items-center gap-1.5">
-                                    <Warehouse className="h-4 w-4 text-muted-foreground" /> Entrepôt source
+                                    <FromIcon className="h-4 w-4 text-muted-foreground" /> Source
                                 </Label>
                                 <Select value={fromLocationId} onValueChange={(v) => {
                                     setFromLocationId(v)
+                                    setToLocationId("")
                                     setLineItems(lineItems.map((i) => ({ ...i, productId: "" })))
                                 }}>
-                                    <SelectTrigger className="h-10"><SelectValue placeholder="Sélectionner un entrepôt..." /></SelectTrigger>
+                                    <SelectTrigger className="h-10"><SelectValue placeholder="Sélectionner une source..." /></SelectTrigger>
                                     <SelectContent>
-                                        {principalLocations.map((l: any) => (
-                                            <SelectItem key={l.id} value={l.id}>
-                                                <div className="flex items-center gap-2">
-                                                    <Warehouse className="h-4 w-4" /> {l.name}
-                                                </div>
-                                            </SelectItem>
-                                        ))}
+                                        {activeLocations.map((l: any) => {
+                                            const Icon = LOCATION_ICONS[l.type] || Store
+                                            return (
+                                                <SelectItem key={l.id} value={l.id}>
+                                                    <div className="flex items-center gap-2"><Icon className="h-4 w-4" /> {l.name}</div>
+                                                </SelectItem>
+                                            )
+                                        })}
                                     </SelectContent>
                                 </Select>
                             </div>
@@ -221,22 +213,35 @@ export default function NewTransferPage() {
                             </div>
                             <div className="space-y-1.5">
                                 <Label className="text-sm font-medium flex items-center gap-1.5">
-                                    <Store className="h-4 w-4 text-muted-foreground" /> Destination
+                                    <ToIcon className="h-4 w-4 text-muted-foreground" /> Destination
                                 </Label>
-                                <Select value={toLocationId} onValueChange={setToLocationId}>
+                                <Select value={toLocationId} onValueChange={setToLocationId} disabled={!fromLocationId}>
                                     <SelectTrigger className="h-10"><SelectValue placeholder="Sélectionner une destination..." /></SelectTrigger>
                                     <SelectContent>
-                                        {[...transitionalLocations, ...barLocations, ...kitchenLocations].map((l: any) => (
-                                            <SelectItem key={l.id} value={l.id}>
-                                                <div className="flex items-center gap-2">
-                                                    <Store className="h-4 w-4" /> {l.name}
-                                                </div>
-                                            </SelectItem>
-                                        ))}
+                                        {destinationLocations.map((l: any) => {
+                                            const Icon = LOCATION_ICONS[l.type] || Store
+                                            return (
+                                                <SelectItem key={l.id} value={l.id}>
+                                                    <div className="flex items-center gap-2"><Icon className="h-4 w-4" /> {l.name}</div>
+                                                </SelectItem>
+                                            )
+                                        })}
                                     </SelectContent>
                                 </Select>
                             </div>
                         </div>
+
+                        {fromLocation && toLocation && (
+                            <div className="mt-4 flex items-center justify-center gap-3 p-3 rounded-lg bg-primary/5 border border-primary/10">
+                                <Badge variant="outline" className="text-xs gap-1">
+                                    <FromIcon className="h-3 w-3" /> {fromLocation.name}
+                                </Badge>
+                                <ArrowRightLeft className="h-4 w-4 text-primary" />
+                                <Badge variant="outline" className="text-xs gap-1">
+                                    <ToIcon className="h-3 w-3" /> {toLocation.name}
+                                </Badge>
+                            </div>
+                        )}
                     </CardContent>
                 </Card>
 
@@ -261,13 +266,13 @@ export default function NewTransferPage() {
                         ) : !fromLocationId ? (
                             <div className="border-2 border-dashed rounded-lg py-12 text-center">
                                 <Warehouse className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-                                <p className="text-sm text-muted-foreground">Sélectionnez un entrepôt source pour voir les produits disponibles</p>
+                                <p className="text-sm text-muted-foreground">Sélectionnez un emplacement source pour voir les produits disponibles</p>
                             </div>
                         ) : availableProducts.length === 0 ? (
                             <div className="border-2 border-dashed rounded-lg py-12 text-center">
                                 <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Aucun stock disponible</p>
-                                <p className="text-xs text-muted-foreground mt-1">Cet entrepôt n'a pas de produits traçables en stock</p>
+                                <p className="text-xs text-muted-foreground mt-1">Cet emplacement n&apos;a pas de produits en stock</p>
                             </div>
                         ) : (
                             <div className="border rounded-lg overflow-hidden">
@@ -280,7 +285,6 @@ export default function NewTransferPage() {
                                 <div className="divide-y">
                                     {lineItems.map((item) => {
                                         const error = getItemError(item)
-                                        const isDrink = item.productType === "drink"
                                         return (
                                             <div key={item.key} className="grid grid-cols-[1fr,11rem,5rem,auto] gap-3 px-4 py-3 items-start">
                                                 <Select value={item.productId} onValueChange={(v) => handleProductSelect(item.key, v)}>
@@ -292,49 +296,23 @@ export default function NewTransferPage() {
                                                             <SelectItem key={p.id} value={p.id}>
                                                                 <div className="flex items-center justify-between w-full gap-4">
                                                                     <span>{p.name}</span>
-                                                                        <Badge variant="secondary" className="text-xs shrink-0">{p.availableQty} en stock</Badge>
+                                                                    <Badge variant="secondary" className="text-xs shrink-0">{p.availableQty} en stock</Badge>
                                                                 </div>
                                                             </SelectItem>
                                                         ))}
                                                     </SelectContent>
                                                 </Select>
-                                                <div className="space-y-0.5">
-                                                    {isDrink && item.productId ? (
-                                                        <div className="flex flex-col gap-1 items-center">
-                                                            <div className="flex items-center justify-center gap-2">
-                                                                <Input
-                                                                    type="number"
-                                                                    min={0}
-                                                                    max={item.productId ? Math.floor(getProductQty(item.productId) / item.quantityPerBox) : undefined}
-                                                                    value={item.boxes}
-                                                                    onChange={(e) => updateBoxes(item.key, Number(e.target.value))}
-                                                                    className={`w-20 text-center h-8 ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                                                                />
-                                                                <span className="text-sm font-medium">Caisses</span>
-                                                            </div>
-                                                            <div className="text-xs text-muted-foreground flex gap-1.5 items-center mt-0.5">
-                                                                <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                                                                        {item.quantityPerBox} unités/caisse
-                                                                </Badge>
-                                                                <span>=</span>
-                                                                <span className="font-semibold text-foreground">{item.quantity} total unités</span>
-                                                            </div>
-                                                            {error && <p className="text-xs text-destructive text-center">{error}</p>}
-                                                        </div>
-                                                    ) : (
-                                                        <>
-                                                            <Input
-                                                                type="number"
-                                                                min={0}
-                                                                max={item.productId ? getProductQty(item.productId) : undefined}
-                                                                value={item.quantity || ""}
-                                                                onChange={(e) => updateUnitQty(item.key, Number(e.target.value))}
-                                                                placeholder="0"
-                                                                className={`h-9 text-center ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
-                                                            />
-                                                            {error && <p className="text-xs text-destructive text-center">{error}</p>}
-                                                        </>
-                                                    )}
+                                                <div className="space-y-1.5">
+                                                    <Input
+                                                        type="number"
+                                                        min={0}
+                                                        max={item.productId ? getProductQty(item.productId) : undefined}
+                                                        value={item.quantity || ""}
+                                                        onChange={(e) => updateUnitQty(item.key, Number(e.target.value))}
+                                                        placeholder="0"
+                                                        className={`h-9 text-center ${error ? "border-destructive focus-visible:ring-destructive" : ""}`}
+                                                    />
+                                                    {error && <p className="text-xs text-destructive text-center">{error}</p>}
                                                 </div>
                                                 <div className="text-sm text-muted-foreground text-right pt-2">
                                                     {item.productId ? (
@@ -351,18 +329,13 @@ export default function NewTransferPage() {
                             </div>
                         )}
 
-                        {/* Summary bar */}
                         {lineItems.some((i) => i.productId && i.quantity > 0) && (
                             <div className="flex items-center justify-between text-sm bg-muted/30 rounded-lg px-4 py-2.5">
                                 <span className="text-muted-foreground">
                                     {lineItems.filter((i) => i.productId && i.quantity > 0).length} produit(s)
                                 </span>
                                 <span className="font-medium">
-                                    {(() => {
-                                        const totalBoxes = lineItems.filter(i => i.productType === "drink").reduce((s, i) => s + i.boxes, 0)
-                                        const totalUnits = lineItems.reduce((s, i) => s + i.quantity, 0)
-                                        return totalBoxes > 0 ? `${totalBoxes} caisses / ${totalUnits} unités` : `${totalUnits} unités`
-                                    })()}
+                                    {lineItems.reduce((s, i) => s + i.quantity, 0)} unités
                                 </span>
                             </div>
                         )}
@@ -379,7 +352,7 @@ export default function NewTransferPage() {
                     </CardHeader>
                     <CardContent>
                         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-                            placeholder="ex: Réapprovisionner le bar pour le week-end"
+                            placeholder="ex: Réapprovisionnement magasin"
                             rows={3} className="resize-none" />
                     </CardContent>
                 </Card>
@@ -392,7 +365,7 @@ export default function NewTransferPage() {
                     <div className="flex items-center gap-2">
                         <Button type="button" variant="ghost" onClick={() => {
                             setFromLocationId(""); setToLocationId(""); setNotes("")
-                            setLineItems([{ key: uuid(), productId: "", productType: "", quantity: 0, boxes: 0, quantityPerBox: 1 }])
+                            setLineItems([{ key: uuid(), productId: "", quantity: 0 }])
                         }}>
                             Réinitialiser
                         </Button>
@@ -402,7 +375,7 @@ export default function NewTransferPage() {
                             ) : (
                                 <Send className="h-4 w-4 mr-2" />
                             )}
-                            Soumettre la demande
+                            {transferType === "direct" ? "Transférer maintenant" : "Soumettre la demande"}
                         </Button>
                     </div>
                 </div>

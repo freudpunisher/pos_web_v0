@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { transactions, transactionItems, tables as tablesSchema, products, stockMovements, stock, clients, creditRecords, creditPayments } from "@/lib/db/schema"
+import { transactions, transactionItems, products, stockMovements, stock, clients, creditRecords, creditPayments } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
 
 export async function GET(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -12,8 +12,8 @@ export async function GET(request: Request, { params }: { params: Promise<{ id: 
                 items: true,
                 client: true,
                 user: true,
-                waiter: { columns: { id: true, name: true } },
-                table: { columns: { id: true, number: true, section: true } },
+                location: { columns: { id: true, name: true } },
+                deliveryLocation: { columns: { id: true, name: true } },
             },
         })
 

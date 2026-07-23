@@ -207,13 +207,12 @@ export async function receive(request: Request) {
       for (const item of items) {
         const [product] = await tx
           .select({
-            productType: products.productType,
             minStock: products.minStock
           })
           .from(products)
           .where(eq(products.id, item.productId))
           .limit(1)
-        const warehouse = await resolveWarehouse(tx, product?.productType || "ingredient")
+        const warehouse = await resolveWarehouse(tx)
 
         // Update legacy products.stock
         await tx

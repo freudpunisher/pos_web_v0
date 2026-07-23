@@ -178,7 +178,7 @@ export default function StockAdjustmentsPage() {
                                                 {locations.map(l => (
                                                     <SelectItem key={l.id} value={l.id}>
                                                         <span className="flex items-center gap-2">
-                                                            {l.type === "principal" ? <Warehouse className="h-3 w-3" /> : <Store className="h-3 w-3" />}
+                                                            {l.type === "primary" ? <Warehouse className="h-3 w-3" /> : <Store className="h-3 w-3" />}
                                                             {l.name}
                                                         </span>
                                                     </SelectItem>

@@ -41,13 +41,12 @@ export async function POST(
                 const qty = Math.round(Number(item.quantity) || 0)
                 const [product] = await tx
                     .select({
-                        productType: products.productType,
                         minStock: products.minStock
                     })
                     .from(products)
                     .where(eq(products.id, item.productId))
                     .limit(1)
-                const warehouse = await resolveWarehouse(tx, product?.productType || "ingredient")
+                const warehouse = await resolveWarehouse(tx)
 
                 // Update legacy products.stock
                 await tx

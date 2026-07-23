@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { transactions, creditRecords, clients, tables as tablesSchema } from "@/lib/db/schema"
+import { transactions, creditRecords, clients } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
 
 export async function PATCH(request: Request, { params }: { params: Promise<{ id: string }> }) {
@@ -55,7 +55,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
                 .set({
                     status: "completed",
                     paymentMethod: "credit",
-                    orderStatus: "paid",
+                    orderStatus: "completed",
                     clientId,
                 })
                 .where(eq(transactions.id, id))
@@ -78,14 +78,6 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
                 dueDate,
                 status: "pending",
             })
-
-            // Free table if occupied
-            if (existing.tableId) {
-                await tx
-                    .update(tablesSchema)
-                    .set({ status: "free" })
-                    .where(eq(tablesSchema.id, existing.tableId))
-            }
 
             return updated
         })

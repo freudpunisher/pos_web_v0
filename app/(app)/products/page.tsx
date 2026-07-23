@@ -7,63 +7,42 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Edit2, Trash2, Loader2, Package, Beer, Utensils, Wheat, Ruler } from "lucide-react"
+import { Search, Plus, Edit2, Trash2, Loader2, Package, GlassWater, ShoppingBag, Wheat } from "lucide-react"
 import { useProducts } from "@/hooks/use-products"
 import { useAuth } from "@/lib/auth-context"
 import { ProductFormDialog } from "@/components/inventory/product-form-dialog"
 import { formatCurrency } from "@/lib/mock-data"
-import { useCategoryGroups } from "@/hooks/use-category-groups"
+import { useProductTypes } from "@/hooks/use-product-types"
 import Swal from "sweetalert2"
 
-const typeConfig: Record<string, { label: string; icon: any; color: string }> = {
-    drink: { label: "Boisson", icon: Beer, color: "bg-blue-500/20 text-blue-700 dark:text-blue-400" },
-    food: { label: "Plat", icon: Utensils, color: "bg-amber-500/20 text-amber-700 dark:text-amber-400" },
-    ingredient: { label: "Cuisine", icon: Wheat, color: "bg-green-500/20 text-green-700 dark:text-green-400" },
-    others: { label: "Autres", icon: Package, color: "bg-purple-500/20 text-purple-700 dark:text-purple-400" },
+const typeIcons: Record<string, any> = {
+    drink: GlassWater,
+    food: ShoppingBag,
+    ingredient: Wheat,
+    others: Package,
 }
+
+const fallbackColor = "bg-gray-500/20 text-gray-700 dark:text-gray-400"
 
 export default function ProductManagementPage() {
     const [search, setSearch] = useState("")
     const [typeFilter, setTypeFilter] = useState<string>("all")
-    const [categoryFilter, setCategoryFilter] = useState<string>("all")
-    const [groupFilter, setGroupFilter] = useState<string>("all")
     const [isFormOpen, setIsFormOpen] = useState(false)
     const [selectedProduct, setSelectedProduct] = useState<any>(null)
     const [page, setPage] = useState(1)
     const [pageSize, setPageSize] = useState(20)
 
     const { products, loading, deleteProduct, createProduct, updateProduct } = useProducts()
-    const { groups } = useCategoryGroups()
-    const [categories, setCategories] = useState<any[]>([])
-
-    useEffect(() => {
-        fetch("/api/categories")
-            .then((res) => res.ok && res.json())
-            .then((data) => data && setCategories(data))
-            .catch(() => {})
-    }, [])
+    const { activeTypes } = useProductTypes()
     const { user } = useAuth()
     const canEdit = user?.role === "admin"
-    const roleSector =
-        (user?.role as string) === "cashier_bakery" || (user?.role as string) === "supervisor_bakery" || (user?.role as string) === "production_bakery"
-            ? "Boulangerie"
-            : (user?.role as string) === "cashier_food" || (user?.role as string) === "supervisor_food"
-                ? "Alimentation"
-                : null
-
-    const categoryIdsByGroup = useMemo(() => {
-        if (groupFilter === "all") return null
-        return categories.filter((c) => c.groupId === groupFilter).map((c) => c.id)
-    }, [groupFilter, categories])
 
     const filteredProducts = useMemo(() => products.filter((product) => {
         const matchesSearch = product.name.toLowerCase().includes(search.toLowerCase()) ||
             product.sku.toLowerCase().includes(search.toLowerCase())
-        const matchesType = typeFilter === "all" || product.productType === typeFilter
-        const matchesCategory = categoryFilter === "all" || product.categoryId === categoryFilter
-        const matchesGroup = !categoryIdsByGroup || categoryIdsByGroup.includes(product.categoryId)
-        return matchesSearch && matchesType && matchesCategory && matchesGroup
-    }), [products, search, typeFilter, categoryFilter, categoryIdsByGroup])
+        const matchesType = typeFilter === "all" || product.productTypeId === typeFilter
+        return matchesSearch && matchesType
+    }), [products, search, typeFilter])
 
     const totalPages = Math.max(1, Math.ceil(filteredProducts.length / pageSize))
     const currentPage = Math.min(page, totalPages)
@@ -145,18 +124,12 @@ export default function ProductManagementPage() {
 
     const typeFilters = [
         { key: "all", label: "Tout", icon: Package },
-        { key: "drink", label: "Boissons", icon: Beer },
-        { key: "food", label: "Plats", icon: Utensils },
-        { key: "ingredient", label: "Ingrédients", icon: Wheat },
-        { key: "others", label: "Autres", icon: Package },
+        ...activeTypes.map((t) => ({ key: t.id, label: t.name, icon: typeIcons[t.slug] || Package })),
     ]
 
-    const counts = {
+    const counts: Record<string, number> = {
         all: products.length,
-        drink: products.filter((p) => p.productType === "drink").length,
-        food: products.filter((p) => p.productType === "food").length,
-        ingredient: products.filter((p) => p.productType === "ingredient").length,
-        others: products.filter((p) => p.productType === "others").length,
+        ...Object.fromEntries(activeTypes.map((t) => [t.id, products.filter((p) => p.productTypeId === t.id).length])),
     }
 
     return (
@@ -164,7 +137,7 @@ export default function ProductManagementPage() {
             <div className="flex items-center justify-between">
                 <div>
                     <h2 className="text-3xl font-bold tracking-tight text-foreground">Produits</h2>
-                    <p className="text-muted-foreground">Gérer les boissons, plats et ingrédients</p>
+                    <p className="text-muted-foreground">Gérer le catalogue de produits de la boutique</p>
                 </div>
                 <Button onClick={handleAddNew}>
                     <Plus className="mr-2 h-4 w-4" />
@@ -190,38 +163,6 @@ export default function ProductManagementPage() {
                             ))}
                         </div>
                         <div className="flex-1" />
-                        <div className="flex items-center gap-2">
-                            <Select
-                                value={groupFilter}
-                                onValueChange={(value) => { setGroupFilter(value); setCategoryFilter("all"); setPage(1) }}
-                            >
-                                <SelectTrigger className="w-[180px] h-9">
-                                    <SelectValue placeholder="Groupe de catégories" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Tous les groupes</SelectItem>
-                                    {groups.map((g: any) => (
-                                        <SelectItem key={g.id} value={g.id}>{g.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                            <Select
-                                value={categoryFilter}
-                                onValueChange={(value) => { setCategoryFilter(value); setPage(1) }}
-                            >
-                                <SelectTrigger className="w-[180px] h-9">
-                                    <SelectValue placeholder="Catégorie" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="all">Toutes les catégories</SelectItem>
-                                    {categories
-                                        .filter((c) => groupFilter === "all" || c.groupId === groupFilter)
-                                        .map((c: any) => (
-                                        <SelectItem key={c.id} value={c.id}>{c.name}</SelectItem>
-                                    ))}
-                                </SelectContent>
-                            </Select>
-                        </div>
                     </div>
                 </CardContent>
             </Card>
@@ -251,58 +192,45 @@ export default function ProductManagementPage() {
                                 <TableHead>Code</TableHead>
                                 <TableHead>Nom</TableHead>
                                 <TableHead>Type</TableHead>
-                                <TableHead>Catégorie</TableHead>
-                                <TableHead>Unité</TableHead>
                                 <TableHead className="text-right">Prix</TableHead>
                                 <TableHead className="text-center">Unités de vente</TableHead>
                                 <TableHead className="text-right">Stock</TableHead>
-                                <TableHead>Statut</TableHead>
                                 <TableHead className="text-right">Actions</TableHead>
                             </TableRow>
                         </TableHeader>
                         <TableBody>
                             {loading ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="h-32 text-center">
+                                    <TableCell colSpan={7} className="h-32 text-center">
                                         <Loader2 className="h-8 w-8 animate-spin mx-auto text-primary" />
                                     </TableCell>
                                 </TableRow>
                             ) : filteredProducts.length === 0 ? (
                                 <TableRow>
-                                    <TableCell colSpan={10} className="h-32 text-center text-muted-foreground italic">
+                                    <TableCell colSpan={7} className="h-32 text-center text-muted-foreground italic">
                                         Aucun produit trouvé
                                     </TableCell>
                                 </TableRow>
                             ) : (
                                 paginatedProducts.map((product) => {
-                                    const type = typeConfig[product.productType] || typeConfig.drink
-                                    const TypeIcon = type.icon
-                                    const isIngredient = product.productType === "ingredient"
-                                    const isFood = product.productType === "food"
-                                    const isMadeToOrder = isFood || (product.productType === "drink" && Number(product.stock) <= 0)
+                                    const productType = activeTypes.find((t) => t.id === product.productTypeId)
+                                    const TypeIcon = productType ? (typeIcons[productType.slug] || Package) : Package
 
                                     return (
                                         <TableRow key={product.id}>
                                             <TableCell className="font-mono text-xs text-muted-foreground">{product.sku}</TableCell>
                                             <TableCell className="font-medium">{product.name}</TableCell>
                                             <TableCell>
-                                                <Badge className={type.color}>
+                                                <Badge className={productType?.color || fallbackColor}>
                                                     <TypeIcon className="h-3 w-3 mr-1" />
-                                                    {type.label}
+                                                    {productType?.name || "—"}
                                                 </Badge>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="text-xs text-muted-foreground">{product.categoryName || "—"}</span>
-                                            </TableCell>
-                                            <TableCell>
-                                                <span className="text-xs text-muted-foreground">{product.unitName || product.unit || "—"}</span>
+                                                {product.subcategoryName && (
+                                                    <span className="ml-1 text-xs text-muted-foreground">/ {product.subcategoryName}</span>
+                                                )}
                                             </TableCell>
                                             <TableCell className="text-right font-semibold">
-                                                {isIngredient ? (
-                                                    <span className="text-muted-foreground text-xs">—</span>
-                                                ) : (
-                                                    formatCurrency(Number(product.price))
-                                                )}
+                                                {formatCurrency(Number(product.price))}
                                             </TableCell>
                                             <TableCell className="text-center">
                                                 {product.sellingUnits && product.sellingUnits.length > 0 ? (
@@ -314,26 +242,13 @@ export default function ProductManagementPage() {
                                                 )}
                                             </TableCell>
                                             <TableCell className="text-right">
-                                                {isMadeToOrder ? (
-                                                    <Badge variant="outline" className="text-xs border-dashed">FSP</Badge>
-                                                ) : (
-                                                    <span className={`px-2 py-1 rounded-md text-xs font-bold ${
-                                                        Number(product.stock) <= Number(product.minStock)
-                                                            ? "bg-destructive/10 text-destructive"
-                                                            : "bg-primary/10 text-primary"
-                                                    }`}>
-                                                        {Number(product.stock)}
-                                                    </span>
-                                                )}
-                                            </TableCell>
-                                            <TableCell>
-                                                {isMadeToOrder ? (
-                                                    <Badge variant="outline" className="text-xs text-purple-600 border-purple-300">Fabriqué sur place</Badge>
-                                                ) : Number(product.stock) <= Number(product.minStock) ? (
-                                                    <Badge className="bg-destructive/20 text-destructive">Stock faible</Badge>
-                                                ) : (
-                                                    <Badge className="bg-green-500/15 text-green-700 border-green-500/20">En stock</Badge>
-                                                )}
+                                                <span className={`px-2 py-1 rounded-md text-xs font-bold ${
+                                                    Number(product.stock) <= Number(product.minStock)
+                                                        ? "bg-destructive/10 text-destructive"
+                                                        : "bg-primary/10 text-primary"
+                                                }`}>
+                                                    {Number(product.stock)}
+                                                </span>
                                             </TableCell>
                                             <TableCell className="text-right">
                                                 <div className="flex items-center justify-end gap-1">

@@ -44,9 +44,8 @@ export default function InventoryCountPage() {
     const { locations } = useLocations()
     const isBakeryUser = user?.role === "cashier_bakery" || user?.role === "supervisor_bakery" || user?.role === "production_bakery"
     const selectableProducts = useMemo(() => {
-        if (!isBakeryUser) return products
-        return products.filter((p: any) => String(p.sector || "").toLowerCase() === "boulangerie")
-    }, [products, isBakeryUser])
+        return products
+    }, [products])
 
     const handleStartSession = async (e: React.FormEvent) => {
         e.preventDefault()

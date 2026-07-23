@@ -72,7 +72,7 @@ export async function POST(
         })
         .where(eq(inventoryItems.id, sessionItemId))
 
-      const warehouse = await resolveWarehouse(tx, product.productType || "ingredient")
+      const warehouse = await resolveWarehouse(tx)
       const [stockRow] = await tx.select().from(stock).where(and(eq(stock.productId, productId), eq(stock.locationId, warehouse.id)))
 
       if (stockRow) {

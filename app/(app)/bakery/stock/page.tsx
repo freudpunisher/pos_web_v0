@@ -6,7 +6,6 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Badge } from "@/components/ui/badge"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth-context"
 import { Loader2, Package, Plus } from "lucide-react"
@@ -38,7 +37,7 @@ export default function BakeryStockPage() {
     const res = await fetch("/api/products")
     if (res.ok) {
       const data = await res.json()
-      setProducts(data.filter((p: any) => p.type === "finished_good" && p.sector === "Boulangerie"))
+      setProducts(data.filter((p: any) => p.type === "finished_good"))
     }
   }
 
@@ -109,7 +108,7 @@ export default function BakeryStockPage() {
                 <SelectContent>
                   {products.map((p: any) => (
                     <SelectItem key={p.id} value={p.id}>
-                      {p.name} ({p.unit || "unit"})
+                      {p.name}
                     </SelectItem>
                   ))}
                 </SelectContent>
@@ -158,20 +157,19 @@ export default function BakeryStockPage() {
                 <TableRow className="hover:bg-transparent border-border">
                   <TableHead>SKU</TableHead>
                   <TableHead>Produit</TableHead>
-                  <TableHead>Unité</TableHead>
                   <TableHead className="text-right">Quantité</TableHead>
                 </TableRow>
               </TableHeader>
               <TableBody>
                 {loading ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center">
+                    <TableCell colSpan={3} className="h-24 text-center">
                       <Loader2 className="h-5 w-5 animate-spin mx-auto text-primary" />
                     </TableCell>
                   </TableRow>
                 ) : filtered.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={3} className="h-24 text-center text-muted-foreground">
                       Aucun produit fini trouvé
                     </TableCell>
                   </TableRow>
@@ -180,9 +178,6 @@ export default function BakeryStockPage() {
                     <TableRow key={item.stockId} className="border-border">
                       <TableCell className="font-mono text-xs">{item.sku}</TableCell>
                       <TableCell className="font-medium">{item.name}</TableCell>
-                      <TableCell>
-                        <Badge variant="outline">{item.unit || "unit"}</Badge>
-                      </TableCell>
                       <TableCell className="text-right font-medium">{Number(item.quantityOnHand || 0)}</TableCell>
                     </TableRow>
                   ))

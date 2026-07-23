@@ -40,8 +40,6 @@ export default function SalesHistoryPage() {
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
   const [statusFilter, setStatusFilter] = useState<string>("all")
-  const [tableFilter, setTableFilter] = useState<string>("all")
-  const [waiterFilter, setWaiterFilter] = useState<string>("all")
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; order: any | null }>({ open: false, order: null })
@@ -76,22 +74,6 @@ export default function SalesHistoryPage() {
     return transactions.filter((t: any) => t.type === "sale")
   }, [transactions])
 
-  const tables = useMemo(() => {
-    const set = new Set<string>()
-    salesTransactions.forEach((t: any) => {
-      if (t.table?.number) set.add(String(t.table.number))
-    })
-    return Array.from(set).sort((a, b) => Number(a) - Number(b))
-  }, [salesTransactions])
-
-  const waiters = useMemo(() => {
-    const set = new Set<string>()
-    salesTransactions.forEach((t: any) => {
-      if (t.user?.name) set.add(t.user.name)
-    })
-    return Array.from(set).sort()
-  }, [salesTransactions])
-
   const filteredTransactions = useMemo(() => {
     let filtered = salesTransactions
 
@@ -105,22 +87,13 @@ export default function SalesHistoryPage() {
       }
     }
 
-    if (tableFilter !== "all") {
-      filtered = filtered.filter((t: any) => String(t.table?.number) === tableFilter)
-    }
-
-    if (waiterFilter !== "all") {
-      filtered = filtered.filter((t: any) => t.user?.name === waiterFilter)
-    }
-
     if (search) {
       const q = search.toLowerCase()
       filtered = filtered.filter((t: any) =>
         t.id.toLowerCase().includes(q) ||
         (t.reference || "").toLowerCase().includes(q) ||
         t.client?.name?.toLowerCase().includes(q) ||
-        t.user?.name?.toLowerCase().includes(q) ||
-        String(t.table?.number || "").includes(q)
+        t.user?.name?.toLowerCase().includes(q)
       )
     }
 
@@ -137,7 +110,7 @@ export default function SalesHistoryPage() {
     }
 
     return filtered
-  }, [salesTransactions, search, startDate, endDate, statusFilter, tableFilter, waiterFilter])
+  }, [salesTransactions, search, startDate, endDate, statusFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize))
   const paginatedTransactions = useMemo(() => {
@@ -147,7 +120,7 @@ export default function SalesHistoryPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, startDate, endDate, statusFilter, tableFilter, waiterFilter])
+  }, [search, startDate, endDate, statusFilter])
 
   const statsTransactions = useMemo(() => {
     const today = new Date()
@@ -185,7 +158,7 @@ export default function SalesHistoryPage() {
       const res = await fetch(`/api/orders/${paymentDialog.order.id}/status`, {
         method: "PATCH",
         headers: { "Content-Type": "application/json" },
-        body: JSON.stringify({ orderStatus: "paid", paymentMethod, clientId }),
+        body: JSON.stringify({ orderStatus: "completed", paymentMethod, clientId }),
       })
       if (!res.ok) {
         const err = await res.json()
@@ -497,30 +470,6 @@ export default function SalesHistoryPage() {
               />
             </div>
             <div className="flex items-center gap-3 flex-wrap">
-              <Select value={waiterFilter} onValueChange={setWaiterFilter}>
-                <SelectTrigger className="w-36 h-10">
-                  <SelectValue placeholder="Serveur" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les serveurs</SelectItem>
-                  {waiters.map((name) => (
-                    <SelectItem key={name} value={name}>{name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
-              <Select value={tableFilter} onValueChange={setTableFilter}>
-                <SelectTrigger className="w-32 h-10">
-<SelectValue placeholder="Table" />
-                 </SelectTrigger>
-                 <SelectContent>
-                   <SelectItem value="all">Toutes les tables</SelectItem>
-                   {tables.map((num) => (
-                     <SelectItem key={num} value={num}>Table {num}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-36 h-10" />
@@ -571,7 +520,6 @@ export default function SalesHistoryPage() {
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ID</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date et heure</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Client</TableHead>
-                      <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Table</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Articles</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Paiement</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">Total</TableHead>
@@ -622,15 +570,6 @@ export default function SalesHistoryPage() {
                               </div>
                             ) : (
                               <span className="text-sm text-muted-foreground italic">Client libre</span>
-                            )}
-                          </TableCell>
-                          <TableCell>
-                            {txn.table ? (
-                              <Badge variant="outline" className="text-xs font-mono">
-                                T{txn.table.number}
-                              </Badge>
-                            ) : (
-                              <span className="text-sm text-muted-foreground">—</span>
                             )}
                           </TableCell>
                           <TableCell>
@@ -943,7 +882,7 @@ export default function SalesHistoryPage() {
                   { label: "Articles vendus", value: String(totalItems), sub: `Sur ${completed.length} commandes`, hl: false },
                   { label: "En attente", value: String(filteredTransactions.filter((t: any) => t.status !== "completed" && t.status !== "cancelled").length), sub: "", hl: false },
                   { label: "Annulés", value: String(filteredTransactions.filter((t: any) => t.status === "cancelled").length), sub: "", hl: false },
-                  { label: "Serveurs actifs", value: String(new Set(completed.filter((t: any) => t.user?.name).map((t: any) => t.user.name)).size), sub: `${new Set(completed.filter((t: any) => t.table?.number).map((t: any) => t.table.number)).size} tables`, hl: false },
+                  { label: "Serveurs actifs", value: String(new Set(completed.filter((t: any) => t.user?.name).map((t: any) => t.user.name)).size), sub: "", hl: false },
                 ]
                 return (
                   <>
@@ -1023,7 +962,7 @@ export default function SalesHistoryPage() {
                       <td className="py-1.5 px-2 whitespace-nowrap">{new Date(txn.date).toLocaleDateString()} {new Date(txn.date).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit" })}</td>
                       <td className="py-1.5 px-2">{txn.client?.name || "Client libre"}</td>
                       <td className="py-1.5 px-2">{txn.user?.name || "—"}</td>
-                      <td className="py-1.5 px-2 text-center">{txn.table ? `T${txn.table.number}` : "—"}</td>
+                      <td className="py-1.5 px-2 text-center">—</td>
                       <td className="py-1.5 px-2 text-center">{txn.items?.length || 0}</td>
                       <td className="py-1.5 px-2 capitalize">{txn.paymentMethod || "Non payé"}</td>
                       <td className="py-1.5 px-2 text-right font-medium">{formatCurrency(Number.parseFloat(txn.total))}</td>

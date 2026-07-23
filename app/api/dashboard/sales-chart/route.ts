@@ -13,7 +13,6 @@ export async function GET(request: NextRequest) {
   try {
     const searchParams = request.nextUrl.searchParams
     const period = searchParams.get("period") || "week"
-    const sector = searchParams.get("sector")
 
     const now = new Date()
     const today = new Date(now)
@@ -36,27 +35,7 @@ export async function GET(request: NextRequest) {
 
     const endDate = fmt(now)
 
-    const salesData = sector
-      ? await db
-          .select({
-            date: sql<string>`DATE(${transactions.date})`,
-            totalSales: sql<number>`sum((${transactionItems.price} * ${transactionItems.quantity}) - ${transactionItems.discount})`,
-            transactionCount: sql<number>`count(distinct ${transactions.id})`,
-          })
-          .from(transactionItems)
-          .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
-          .innerJoin(products, eq(transactionItems.productId, products.id))
-          .where(
-            and(
-              gte(transactions.date, sql`${startDate}::timestamp`),
-              lte(transactions.date, sql`${endDate}::timestamp`),
-              ne(transactions.status, "cancelled"),
-              eq(products.sector, sector)
-            )
-          )
-          .groupBy(sql`DATE(${transactions.date})`)
-          .orderBy(sql`DATE(${transactions.date})`)
-      : await db
+    const salesData = await db
           .select({
             date: sql<string>`DATE(${transactions.date})`,
             totalSales: sql<number>`sum(${transactions.total})`,

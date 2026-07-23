@@ -32,8 +32,8 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
             const updates: Record<string, any> = {}
             if (body.total !== undefined) updates.total = body.total.toString()
             if (body.clientId !== undefined) updates.clientId = body.clientId
-            if (body.waiterId !== undefined) updates.waiterId = body.waiterId
-            if (body.tableId !== undefined) updates.tableId = body.tableId
+            if (body.locationId !== undefined) updates.locationId = body.locationId
+            if (body.deliveryLocationId !== undefined) updates.deliveryLocationId = body.deliveryLocationId
 
             if (Object.keys(updates).length > 0) {
                 await tx.update(transactions).set(updates).where(eq(transactions.id, id))
@@ -79,12 +79,20 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                 await tx.delete(transactionItems).where(eq(transactionItems.transactionId, id))
                 await tx.delete(stockMovements).where(eq(stockMovements.referenceId, id))
 
-                // 3. Find bar location for new stock deductions
-                const [barLocation] = await tx
+                // 3. Find selling location for new stock deductions
+                const [saleLocation] = await tx
                     .select()
                     .from(locations)
-                    .where(eq(locations.type, "bar"))
+                    .where(eq(locations.id, existing.locationId || ""))
                     .limit(1)
+
+                // Fallback to first active location if not set
+                const targetLocation = saleLocation || await tx
+                    .select()
+                    .from(locations)
+                    .where(eq(locations.isActive, true))
+                    .limit(1)
+                    .then(r => r[0])
 
                 // 4. Insert new items and deduct stock
                 for (const item of body.items) {
@@ -116,11 +124,11 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                         stock: sql`${products.stock} - ${stockQty}`,
                     }).where(eq(products.id, item.productId))
 
-                    if (barLocation) {
+                    if (targetLocation) {
                         const [existingStock] = await tx
                             .select()
                             .from(stock)
-                            .where(and(eq(stock.productId, item.productId), eq(stock.locationId, barLocation.id)))
+                            .where(and(eq(stock.productId, item.productId), eq(stock.locationId, targetLocation.id)))
                             .limit(1)
 
                         if (existingStock) {
@@ -131,7 +139,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                         } else {
                             await tx.insert(stock).values({
                                 productId: item.productId,
-                                locationId: barLocation.id,
+                                locationId: targetLocation.id,
                                 quantityOnHand: Math.max(0, -stockQty).toString(),
                             })
                         }
@@ -142,7 +150,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
                             type: "out",
                             quantity: String(-stockQty),
                             userId: existing.userId,
-                            locationId: barLocation.id,
+                            locationId: targetLocation.id,
                             referenceId: id,
                             referenceType: "order",
                             notes: `Modified order ${id}`,
@@ -159,7 +167,7 @@ export async function PUT(request: Request, { params }: { params: Promise<{ id: 
 
             const updated = await db.query.transactions.findFirst({
                 where: eq(transactions.id, id),
-                with: { items: true, client: true, user: true, table: true },
+                with: { items: true, client: true, user: true, location: true, deliveryLocation: true },
             })
 
             return updated
@@ -255,7 +263,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
 
             const updated = await db.query.transactions.findFirst({
                 where: eq(transactions.id, id),
-                with: { items: true, client: true, user: true, table: true },
+                with: { items: true, client: true, user: true, location: true, deliveryLocation: true },
             })
 
             return NextResponse.json(updated)

@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { stock, products, locations, purchaseOrders, transactions, transactionItems } from "@/lib/db/schema"
+import { stock, products, locations, purchaseOrders, transactions, transactionItems, productTypes } from "@/lib/db/schema"
 import { sql, eq, and, gte, lte } from "drizzle-orm"
 
 export async function GET(request: Request) {
@@ -90,10 +90,10 @@ export async function GET(request: Request) {
 
         const cogs = Number(cogsResult[0]?.total || 0)
 
-        // 5. Sales & COGS by product type (drink = bar, food/ingredient = cuisine)
+        // 5. Sales by product type (for retail reporting)
         const salesByProductType = await db
             .select({
-                productType: products.productType,
+                productType: productTypes.name,
                 revenue: sql<number>`sum(${transactionItems.quantity}::numeric * ${transactionItems.price}::numeric)`,
                 cogs: sql<number>`sum(${transactionItems.quantity}::numeric * ${products.cost}::numeric)`,
                 count: sql<number>`count(distinct ${transactions.id})`,
@@ -101,33 +101,23 @@ export async function GET(request: Request) {
             .from(transactionItems)
             .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
             .innerJoin(products, eq(transactionItems.productId, products.id))
+            .innerJoin(productTypes, eq(products.productTypeId, productTypes.id))
             .where(and(
                 gte(transactions.date, start),
                 lte(transactions.date, end),
                 eq(transactions.type, "sale"),
                 eq(transactions.status, "completed"),
             ))
-            .groupBy(products.productType)
+            .groupBy(productTypes.name)
 
-        const barRevenue = salesByProductType
-            .filter((r) => r.productType === "drink")
-            .reduce((acc, r) => acc + Number(r.revenue || 0), 0)
-        const barCogs = salesByProductType
-            .filter((r) => r.productType === "drink")
-            .reduce((acc, r) => acc + Number(r.cogs || 0), 0)
-        const barCount = salesByProductType
-            .filter((r) => r.productType === "drink")
-            .reduce((acc, r) => acc + Number(r.count || 0), 0)
-
-        const cuisineRevenue = salesByProductType
-            .filter((r) => r.productType !== "drink")
-            .reduce((acc, r) => acc + Number(r.revenue || 0), 0)
-        const cuisineCogs = salesByProductType
-            .filter((r) => r.productType !== "drink")
-            .reduce((acc, r) => acc + Number(r.cogs || 0), 0)
-        const cuisineCount = salesByProductType
-            .filter((r) => r.productType !== "drink")
-            .reduce((acc, r) => acc + Number(r.count || 0), 0)
+        const byType: Record<string, { revenue: number; cogs: number; count: number }> = {}
+        for (const row of salesByProductType) {
+            byType[row.productType] = {
+                revenue: Number(row.revenue || 0),
+                cogs: Number(row.cogs || 0),
+                count: Number(row.count || 0),
+            }
+        }
 
         return NextResponse.json({
             period: { start, end },
@@ -146,24 +136,7 @@ export async function GET(request: Request) {
                 grossProfit: sales.total - cogs,
                 margin: sales.total > 0 ? ((sales.total - cogs) / sales.total) * 100 : 0,
             },
-            bar: {
-                stockValue: Number(stockByLocation["bar"]?.value || 0),
-                stockQty: Number(stockByLocation["bar"]?.totalQty || 0),
-                revenue: barRevenue,
-                cogs: barCogs,
-                profit: barRevenue - barCogs,
-                margin: barRevenue > 0 ? ((barRevenue - barCogs) / barRevenue) * 100 : 0,
-                transactionCount: barCount,
-            },
-            cuisine: {
-                stockValue: Number(stockByLocation["kitchen"]?.value || 0),
-                stockQty: Number(stockByLocation["kitchen"]?.totalQty || 0),
-                revenue: cuisineRevenue,
-                cogs: cuisineCogs,
-                profit: cuisineRevenue - cuisineCogs,
-                margin: cuisineRevenue > 0 ? ((cuisineRevenue - cuisineCogs) / cuisineRevenue) * 100 : 0,
-                transactionCount: cuisineCount,
-            },
+            byProductType: byType,
         })
     } catch (error) {
         console.error("Failed to fetch finance overview:", error)

@@ -17,14 +17,12 @@ import { toast } from "@/components/ui/use-toast"
 interface POItem {
   productId: string
   productName: string
-  productType: string
   quantity: number
   cost: number
 }
 
 export default function CreatePurchaseOrderPage() {
   const router = useRouter()
-  const [sector, setSector] = useState("Alimentation")
   const [supplierId, setSupplierId] = useState("")
   const [items, setItems] = useState<POItem[]>([])
   const [selectedProductId, setSelectedProductId] = useState("")
@@ -34,10 +32,7 @@ export default function CreatePurchaseOrderPage() {
   const { products, loading: productsLoading } = useProducts()
   const { createOrder } = usePurchases()
 
-  const purchasableProducts = products.filter((p) => {
-    const pSector = p.sector || (p.productType === "drink" ? "Bar" : "Alimentation")
-    return pSector === sector && p.trackStock
-  })
+  const purchasableProducts = products
 
   const addProduct = () => {
     if (!selectedProductId) return
@@ -57,7 +52,6 @@ export default function CreatePurchaseOrderPage() {
         {
           productId: product.id,
           productName: product.name,
-          productType: product.productType,
           quantity: 1,
           cost: 0,
         },
@@ -93,7 +87,7 @@ export default function CreatePurchaseOrderPage() {
     e.preventDefault()
     setIsSubmitting(true)
     try {
-      await createOrder({ supplierId, items, total, sector })
+      await createOrder({ supplierId, items, total })
       toast({ title: "Commande créée", description: "Nouveau bon de commande sauvegardé comme en attente." })
       router.push("/purchases")
     } catch (err: any) {
@@ -159,19 +153,6 @@ export default function CreatePurchaseOrderPage() {
                   </SelectContent>
                 </Select>
               </div>
-              <div className="space-y-2">
-                <Label htmlFor="sector" className="text-base">Secteur *</Label>
-                <Select value={sector} onValueChange={setSector} required>
-                  <SelectTrigger>
-                    <SelectValue />
-                  </SelectTrigger>
-                  <SelectContent>
-                    <SelectItem value="Alimentation">Alimentation</SelectItem>
-                    <SelectItem value="Bar">Bar</SelectItem>
-                    <SelectItem value="Cuisine">Cuisine</SelectItem>
-                  </SelectContent>
-                </Select>
-              </div>
             </div>
           </CardContent>
         </Card>
@@ -231,9 +212,6 @@ export default function CreatePurchaseOrderPage() {
                           <TableCell className="font-medium">
                             <div className="flex flex-col gap-0.5">
                               <span>{item.productName}</span>
-                              <span className="text-[10px] text-muted-foreground uppercase tracking-wide">
-                                {item.productType}
-                              </span>
                             </div>
                           </TableCell>
                           <TableCell className="text-right">

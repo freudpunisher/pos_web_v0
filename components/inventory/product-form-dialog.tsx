@@ -14,9 +14,10 @@ import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Separator } from "@/components/ui/separator"
-import { useCategories } from "@/hooks/use-products"
 import { useUnits } from "@/hooks/use-units"
-import { Loader2, Beer, Utensils, Package, Plus, Trash2, GripVertical, Save } from "lucide-react"
+import { useProductTypes } from "@/hooks/use-product-types"
+import { useSubcategories } from "@/hooks/use-subcategories"
+import { Loader2, Plus, Trash2, Save } from "lucide-react"
 import Swal from "sweetalert2"
 import { toast } from "sonner"
 
@@ -35,36 +36,27 @@ interface SellingUnitForm {
 }
 
 export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: ProductFormDialogProps) {
-    const { categories, loading: categoriesLoading } = useCategories()
     const { units, loading: unitsLoading } = useUnits()
+    const { activeTypes, loading: typesLoading } = useProductTypes()
     const [loading, setLoading] = useState(false)
     const [formData, setFormData] = useState({
         name: "",
-        categoryId: "",
-        productType: "drink",
+        productTypeId: "",
+        subcategoryId: "",
         price: "",
-        unit: "kg",
         minStock: "10",
-        trackStock: false,
-        quantityPerBox: "1",
-        image: "",
-        sector: "",
     })
+    const { activeSubcategories, loading: subcatsLoading } = useSubcategories(formData.productTypeId || null)
     const [sellingUnits, setSellingUnits] = useState<SellingUnitForm[]>([])
 
     useEffect(() => {
         if (product) {
             setFormData({
                 name: product.name || "",
-                categoryId: product.categoryId || "",
-                productType: product.productType || "drink",
+                productTypeId: product.productTypeId || "",
+                subcategoryId: product.subcategoryId || "",
                 price: product.price?.toString() || "",
-                unit: product.unit || "kg",
                 minStock: product.minStock?.toString() || "10",
-                trackStock: product.trackStock ?? (product.productType === "ingredient" || Number(product.stock) > 0),
-                quantityPerBox: product.quantityPerBox?.toString() || "1",
-                image: product.image || "",
-                sector: product.sector || "",
             })
             if (product.sellingUnits && product.sellingUnits.length > 0) {
                 setSellingUnits(
@@ -81,28 +73,14 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
         } else {
             setFormData({
                 name: "",
-                categoryId: "",
-                productType: "drink",
+                productTypeId: "",
+                subcategoryId: "",
                 price: "",
-                unit: "kg",
                 minStock: "10",
-                trackStock: false,
-                quantityPerBox: "1",
-                image: "",
-                sector: "",
             })
             setSellingUnits([])
         }
     }, [product, open])
-
-    useEffect(() => {
-        if (units.length > 0 && formData.unit) {
-            const unitExists = units.some((u) => u.code === formData.unit)
-            if (!unitExists) {
-                setFormData((prev) => ({ ...prev, unit: units[0].code }))
-            }
-        }
-    }, [units])
 
     const addSellingUnit = () => {
         setSellingUnits([...sellingUnits, { name: "", unitId: "", price: "", conversionFactor: "1" }])
@@ -120,37 +98,16 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
 
     const handleSubmit = async (e: React.FormEvent) => {
         e.preventDefault()
-        if (!formData.unit.trim()) {
-            await Swal.fire({
-                icon: "error",
-                title: "Invalid unit",
-                text: "Unit is required.",
-            })
-            return
-        }
         setLoading(true)
         try {
             const data: any = {
                 name: formData.name,
-                categoryId: formData.categoryId,
-                productType: formData.productType,
-                unit: formData.unit,
-                image: formData.image || null,
-                sector: formData.sector || null,
+                productTypeId: formData.productTypeId || null,
+                subcategoryId: formData.subcategoryId || null,
+                price: parseFloat(formData.price) || 0,
+                minStock: parseInt(formData.minStock) || 10,
             }
 
-            if (formData.productType === "ingredient") {
-                data.minStock = parseInt(formData.minStock) || 10
-                data.trackStock = true
-                data.price = 0
-            } else {
-                data.price = parseFloat(formData.price) || 0
-                data.trackStock = formData.trackStock
-                data.minStock = formData.trackStock ? (parseInt(formData.minStock) || 10) : 0
-                data.quantityPerBox = parseInt(formData.quantityPerBox) || 1
-            }
-
-            // Include selling units if any
             const validSellingUnits = sellingUnits.filter(su => su.name.trim() && su.price)
             if (validSellingUnits.length > 0) {
                 data.sellingUnits = validSellingUnits.map((su, i) => ({
@@ -175,111 +132,71 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
         }
     }
 
-    const isIngredient = formData.productType === "ingredient"
-    const isFood = formData.productType === "food"
-    const isDrink = formData.productType === "drink"
+    const selectedType = activeTypes.find((t) => t.id === formData.productTypeId)
 
     return (
         <Dialog open={open} onOpenChange={onOpenChange}>
             <DialogContent className="sm:max-w-[800px] max-h-[90vh] overflow-y-auto">
                 <form onSubmit={handleSubmit}>
                     <DialogHeader>
-                        <DialogTitle>{product ? "Edit Product" : "Add New Product"}</DialogTitle>
+                        <DialogTitle>{product ? "Modifier le produit" : "Ajouter un produit"}</DialogTitle>
                         <DialogDescription>
-                            {product ? "Update product information." : "Enter the details for the new product."}
+                            {product ? "Modifier les informations du produit." : "Saisir les détails du nouveau produit."}
                         </DialogDescription>
                     </DialogHeader>
                     <div className="grid gap-4 py-4">
-                        {/* Product Type */}
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label className="text-right">Type</Label>
-                            <div className="col-span-3 flex gap-2">
-                                {(['drink', 'food', 'ingredient', 'others'] as const).map((type) => (
+                            <div className="col-span-3 flex gap-2 flex-wrap">
+                                {activeTypes.map((type) => (
                                     <Button
-                                        key={type}
+                                        key={type.id}
                                         type="button"
-                                        variant={formData.productType === type ? "default" : "outline"}
+                                        variant={formData.productTypeId === type.id ? "default" : "outline"}
                                         size="sm"
-                                        onClick={() => setFormData({ ...formData, productType: type })}
+                                        onClick={() => setFormData({ ...formData, productTypeId: type.id })}
                                         className="flex-1"
                                     >
-                                        {type === "drink" && <Beer className="h-4 w-4 mr-1" />}
-                                        {type === "food" && <Utensils className="h-4 w-4 mr-1" />}
-                                        {type === "ingredient" && <Package className="h-4 w-4 mr-1" />}
-                                        {type === "others" && <Package className="h-4 w-4 mr-1" />}
-                                        {type === "drink" ? "Drink" : type === "food" ? "Food" : type === "ingredient" ? "Cuisine" : "Autres"}
+                                        {type.name}
                                     </Button>
                                 ))}
                             </div>
                         </div>
 
-                        {/* Name */}
+                        {formData.productTypeId && activeSubcategories.length > 0 && (
+                            <div className="grid grid-cols-4 items-center gap-4">
+                                <Label className="text-right">Sous-catégorie</Label>
+                                <Select value={formData.subcategoryId || "none"} onValueChange={(v) => setFormData({ ...formData, subcategoryId: v === "none" ? "" : v })}>
+                                    <SelectTrigger className="col-span-3">
+                                        <SelectValue placeholder="Optionnel" />
+                                    </SelectTrigger>
+                                    <SelectContent>
+                                        <SelectItem value="none">Aucune</SelectItem>
+                                        {activeSubcategories.map((sub) => (
+                                            <SelectItem key={sub.id} value={sub.id}>{sub.name}</SelectItem>
+                                        ))}
+                                    </SelectContent>
+                                </Select>
+                            </div>
+                        )}
+
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="name" className="text-right">Name</Label>
+                            <Label htmlFor="name" className="text-right">Nom</Label>
                             <Input
                                 id="name"
                                 value={formData.name}
                                 onChange={(e) => setFormData({ ...formData, name: e.target.value })}
                                 className="col-span-3"
                                 required
-                                placeholder={isIngredient ? "e.g. Chicken Breast" : isDrink ? "e.g. Bottled Beer" : "e.g. Grilled Chicken Plate"}
+                                placeholder={selectedType?.name ? `Ex: ${selectedType.name}` : "Nom du produit"}
                             />
                         </div>
 
-                        {/* Sector */}
+                        {/* Selling Price */}
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="category" className="text-right">
-                                Category
+                            <Label htmlFor="price" className="text-right">
+                                Prix de vente
                             </Label>
-                            <Select
-                                value={formData.categoryId}
-                                onValueChange={(value) => setFormData({ ...formData, categoryId: value })}
-                            >
-                                <SelectTrigger id="category" className="col-span-3">
-                                    <SelectValue placeholder="Select category" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {categories.length === 0 ? (
-                                        <SelectItem value="none" disabled>No categories found</SelectItem>
-                                    ) : (
-                                        categories.map((cat) => (
-                                            <SelectItem key={cat.id} value={cat.id}>
-                                                {cat.name}
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                            {categoriesLoading && <span className="col-span-3 text-xs text-muted-foreground">Loading categories...</span>}
-                        </div>
-
-                        {/* Sector */}
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="sector" className="text-right">
-                                Sector
-                            </Label>
-                            <Select
-                                value={formData.sector}
-                                onValueChange={(value) => setFormData({ ...formData, sector: value })}
-                            >
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="Select sector" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    <SelectItem value="Alimentation">Alimentation</SelectItem>
-                                    <SelectItem value="Bar">Bar</SelectItem>
-                                    <SelectItem value="Cuisine">Cuisine</SelectItem>
-                                    <SelectItem value="Boulangerie">Boulangerie</SelectItem>
-                                </SelectContent>
-                            </Select>
-                        </div>
-
-                        {/* Selling Price (hidden for ingredients) */}
-                        {!isIngredient && (
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="price" className="text-right">
-                                    {isFood ? "Plate Price" : "Default Price"}
-                                </Label>
                                 <Input
                                     id="price"
                                     type="number"
@@ -291,140 +208,28 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                     required
                                 />
                             </div>
-                        )}
 
-                        {/* Image Upload */}
-                        <div className="grid grid-cols-4 items-start gap-4">
-                            <Label htmlFor="image" className="text-right pt-2">Image</Label>
-                            <div className="col-span-3 space-y-2">
-                                <input
-                                    id="image"
-                                    type="file"
-                                    accept="image/*"
-                                    key={product?.id || "new"}
-                                    onChange={(e) => {
-                                        const file = e.target.files?.[0]
-                                        if (file) {
-                                            const reader = new FileReader()
-                                            reader.onload = (ev) => {
-                                                setFormData({ ...formData, image: ev.target?.result as string })
-                                            }
-                                            reader.readAsDataURL(file)
-                                        }
-                                    }}
-                                    className="file:text-foreground placeholder:text-muted-foreground selection:bg-primary selection:text-primary-foreground dark:bg-input/30 border-input h-9 w-full min-w-0 rounded-md border bg-transparent px-3 py-1 text-base shadow-xs transition-[color,box-shadow] outline-none file:inline-flex file:h-7 file:border-0 file:bg-transparent file:text-sm file:font-medium disabled:pointer-events-none disabled:cursor-not-allowed disabled:opacity-50 md:text-sm focus-visible:border-ring focus-visible:ring-ring/50 focus-visible:ring-[3px]"
-                                />
-                                {formData.image && (
-                                    <div className="flex items-center gap-3">
-                                        <div className="relative h-20 w-20 rounded-lg overflow-hidden border">
-                                            <img
-                                                src={formData.image}
-                                                alt="Preview"
-                                                className="h-full w-full object-cover"
-                                            />
-                                        </div>
-                                        <Button
-                                            type="button"
-                                            variant="ghost"
-                                            size="sm"
-                                            onClick={() => setFormData({ ...formData, image: "" })}
-                                            className="text-destructive"
-                                        >
-                                            Supprimer
-                                        </Button>
-                                    </div>
-                                )}
-                            </div>
-                        </div>
-
-                        {/* Track Stock Toggle (drinks only) */}
-                        {isDrink && (
-                            <>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label className="text-right">Track Stock</Label>
-                                    <div className="col-span-3">
-                                        <Button
-                                            type="button"
-                                            variant={formData.trackStock ? "default" : "outline"}
-                                            size="sm"
-                                            onClick={() => setFormData({ ...formData, trackStock: !formData.trackStock })}
-                                        >
-                                            {formData.trackStock ? "Yes — Countable" : "No — Made to Order"}
-                                        </Button>
-                                        <p className="text-xs text-muted-foreground mt-1">
-                                            {formData.trackStock
-                                                ? "Stock decreases when sold (e.g. bottled beer, soda can)"
-                                                : "No stock tracking (e.g. cafe, fresh juice)"}
-                                        </p>
-                                    </div>
-                                </div>
-                                <div className="grid grid-cols-4 items-center gap-4">
-                                    <Label htmlFor="quantityPerBox" className="text-right">Qty per Box</Label>
-                                    <Input
-                                        id="quantityPerBox"
-                                        type="number"
-                                        min="1"
-                                        value={formData.quantityPerBox}
-                                        onChange={(e) => setFormData({ ...formData, quantityPerBox: e.target.value })}
-                                        className="col-span-3"
-                                        placeholder="Quantity in a case (e.g. 24)"
-                                    />
-                                </div>
-                            </>
-                        )}
-
-                        {/* Unit Selection */}
                         <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="unit" className="text-right">Base Unit</Label>
-                            <Select
-                                value={formData.unit}
-                                onValueChange={(value) => setFormData({ ...formData, unit: value })}
+                            <Label htmlFor="minStock" className="text-right">Stock minimum</Label>
+                            <Input
+                                id="minStock"
+                                type="number"
+                                min="0"
+                                value={formData.minStock}
+                                onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
+                                className="col-span-3"
                                 required
-                            >
-                                <SelectTrigger className="col-span-3">
-                                    <SelectValue placeholder="Select unit" />
-                                </SelectTrigger>
-                                <SelectContent>
-                                    {units.length === 0 ? (
-                                        <SelectItem value="unit">Unité (unit)</SelectItem>
-                                    ) : (
-                                        units.map((unit) => (
-                                            <SelectItem key={unit.id} value={unit.code}>
-                                                {unit.name} ({unit.symbol || unit.code})
-                                            </SelectItem>
-                                        ))
-                                    )}
-                                </SelectContent>
-                            </Select>
-                            {unitsLoading && <span className="col-span-3 text-xs text-muted-foreground">Loading units...</span>}
+                            />
                         </div>
-
-                        {/* Min Stock (for tracked drinks and ingredients) */}
-                        {(isIngredient || (isDrink && formData.trackStock)) && (
-                            <div className="grid grid-cols-4 items-center gap-4">
-                                <Label htmlFor="minStock" className="text-right">Min Stock Alert</Label>
-                                <Input
-                                    id="minStock"
-                                    type="number"
-                                    min="0"
-                                    value={formData.minStock}
-                                    onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
-                                    className="col-span-3"
-                                    required
-                                />
-                            </div>
-                        )}
 
                         {/* Selling Units Section */}
-                        {!isIngredient && (
-                            <>
-                                <Separator className="my-2" />
-                                <div className="grid grid-cols-4 items-start gap-4">
-                                    <Label className="text-right pt-1">Selling Units</Label>
+                        <Separator className="my-2" />
+                        <div className="grid grid-cols-4 items-start gap-4">
+                                    <Label className="text-right pt-1">Unités de vente</Label>
                                     <div className="col-span-3 space-y-3">
                                         {sellingUnits.length === 0 && (
                                             <p className="text-xs text-muted-foreground">
-                                                Add different packaging options with their own prices (e.g. Short, Bottle).
+                                                Add different packaging options with their own prices (e.g. Unité, Palette).
                                             </p>
                                         )}
                                         {sellingUnits.map((su, index) => (
@@ -432,16 +237,16 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                                 <div className="flex-1 space-y-2">
                                                     <div className="grid grid-cols-4 gap-2">
                                                         <div>
-                                                            <Label className="text-xs">Name</Label>
+                                                            <Label className="text-xs">Nom</Label>
                                                             <Input
                                                                 value={su.name}
                                                                 onChange={(e) => updateSellingUnit(index, "name", e.target.value)}
-                                                                placeholder="e.g. Short, Bottle"
+                                                                placeholder="Ex: Unité, Carton, Palette"
                                                                 className="h-8 text-sm"
                                                             />
                                                         </div>
                                                         <div>
-                                                            <Label className="text-xs">Unit</Label>
+                                                            <Label className="text-xs">Unité</Label>
                                                             <Select
                                                                 value={su.unitId}
                                                                 onValueChange={(value) => updateSellingUnit(index, "unitId", value)}
@@ -459,7 +264,7 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                                             </Select>
                                                         </div>
                                                         <div>
-                                                            <Label className="text-xs">Price</Label>
+                                                            <Label className="text-xs">Prix</Label>
                                                             <Input
                                                                 type="number"
                                                                 step="0.01"
@@ -478,9 +283,9 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                                                 min="0.001"
                                                                 value={su.conversionFactor}
                                                                 onChange={(e) => updateSellingUnit(index, "conversionFactor", e.target.value)}
-                                                                placeholder="e.g. 1, 0.05"
+                                                                placeholder="Ex: 1, 0.05"
                                                                 className="h-8 text-sm"
-                                                                title="How many stock units this selling unit represents. E.g. 1 bottle = 1, 1 short = 0.05"
+                                                                title="Combien d'unités de stock cette unité de vente représente. Ex: 1 carton = 1, 1 unité = 0.05"
                                                             />
                                                         </div>
                                                     </div>
@@ -504,20 +309,18 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                             className="w-full"
                                         >
                                             <Plus className="h-4 w-4 mr-1" />
-                                            Add Selling Unit
+                                            Ajouter une unité de vente
                                         </Button>
                                     </div>
                                 </div>
-                            </>
-                        )}
                     </div>
                     <DialogFooter>
                         <Button type="button" variant="outline" onClick={() => onOpenChange(false)}>
-                            Cancel
+                            Annuler
                         </Button>
                         <Button type="submit" disabled={loading}>
                             {loading ? <Loader2 className="mr-2 h-4 w-4 animate-spin" /> : <Save className="mr-2 h-4 w-4" />}
-                            {product ? "Save Changes" : "Add Product"}
+                            {product ? "Enregistrer" : "Ajouter"}
                         </Button>
                     </DialogFooter>
                 </form>

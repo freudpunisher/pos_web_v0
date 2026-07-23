@@ -36,82 +36,43 @@ export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams
         const period = searchParams.get("period") || "today"
-        const sector = searchParams.get("sector")
 
         const { startDate, endDate } = getPeriodDateRange(period)
 
         // 1. Sales for period
-        const salesPromise = sector
-            ? db
-                  .select({
-                      total: sql<number>`sum((${transactionItems.price} * ${transactionItems.quantity}) - ${transactionItems.discount})`,
-                      count: sql<number>`count(distinct ${transactions.id})`,
-                      creditCount: sql<number>`count(distinct case when ${transactions.paymentMethod} = 'credit' then ${transactions.id} end)`,
-                  })
-                  .from(transactionItems)
-                  .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
-                  .innerJoin(products, eq(transactionItems.productId, products.id))
-                    .where(
-                        and(
-                            gte(transactions.date, sql`${startDate}::timestamp`),
-                            lte(transactions.date, sql`${endDate}::timestamp`),
-                            ne(transactions.status, "cancelled"),
-                            eq(products.sector, sector)
-                        )
-                    )
-            : db
-                  .select({
-                      total: sql<number>`sum(${transactions.total})`,
-                      count: sql<number>`count(*)`,
-                      creditCount: sql<number>`count(case when ${transactions.paymentMethod} = 'credit' then 1 end)`
-                  })
-                  .from(transactions)
-                  .where(
-                      and(
-                          gte(transactions.date, sql`${startDate}::timestamp`),
-                          lte(transactions.date, sql`${endDate}::timestamp`),
-                          ne(transactions.status, "cancelled")
-                      )
+        const salesPromise = db
+              .select({
+                  total: sql<number>`sum(${transactions.total})`,
+                  count: sql<number>`count(*)`,
+                  creditCount: sql<number>`count(case when ${transactions.paymentMethod} = 'credit' then 1 end)`
+              })
+              .from(transactions)
+              .where(
+                  and(
+                      gte(transactions.date, sql`${startDate}::timestamp`),
+                      lte(transactions.date, sql`${endDate}::timestamp`),
+                      ne(transactions.status, "cancelled")
                   )
+              )
 
         // 2. Revenue (for month, use monthly; for others just use sales)
-        const revenuePromise = sector
-            ? db
-                  .select({
-                      total: sql<number>`sum((${transactionItems.price} * ${transactionItems.quantity}) - ${transactionItems.discount})`
-                  })
-                  .from(transactionItems)
-                  .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
-                  .innerJoin(products, eq(transactionItems.productId, products.id))
-                  .where(
-                      and(
-                          gte(transactions.date, sql`${startDate}::timestamp`),
-                          ne(transactions.status, "cancelled"),
-                          eq(products.sector, sector)
-                      )
+        const revenuePromise = db
+              .select({
+                  total: sql<number>`sum(${transactions.total})`
+              })
+              .from(transactions)
+              .where(
+                  and(
+                      gte(transactions.date, sql`${startDate}::timestamp`),
+                      ne(transactions.status, "cancelled")
                   )
-            : db
-                  .select({
-                      total: sql<number>`sum(${transactions.total})`
-                  })
-                  .from(transactions)
-                  .where(
-                      and(
-                          gte(transactions.date, sql`${startDate}::timestamp`),
-                          ne(transactions.status, "cancelled")
-                      )
-                  )
+              )
 
         // 3. Low Stock Items (exclude food products — made-to-order / recipe-based)
-        const lowStockPromise = sector
-            ? db
-                  .select({ count: sql<number>`count(*)` })
-                  .from(products)
-                  .where(and(eq(products.sector, sector), ne(products.productType, "food"), sql`${products.stock} <= ${products.minStock}`))
-            : db
-                  .select({ count: sql<number>`count(*)` })
-                  .from(products)
-                  .where(and(ne(products.productType, "food"), sql`${products.stock} <= ${products.minStock}`))
+        const lowStockPromise = db
+              .select({ count: sql<number>`count(*)` })
+              .from(products)
+              .where(sql`${products.stock} <= ${products.minStock}`)
 
         // 4. Total Credit Balance
         const totalCreditPromise = db
@@ -125,13 +86,11 @@ export async function GET(request: NextRequest) {
             })
             .from(transactionItems)
             .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
-            .innerJoin(products, eq(transactionItems.productId, products.id))
             .where(
                 and(
                     gte(transactions.date, sql`${startDate}::timestamp`),
                     lte(transactions.date, sql`${endDate}::timestamp`),
-                    ne(transactions.status, "cancelled"),
-                    sector ? eq(products.sector, sector) : sql`true`
+                    ne(transactions.status, "cancelled")
                 )
             )
 
@@ -139,7 +98,7 @@ export async function GET(request: NextRequest) {
         const recentTransactionsPromise = db.query.transactions.findMany({
             where: ne(transactions.status, "cancelled"),
             orderBy: [desc(transactions.date)],
-            limit: sector ? 40 : 5,
+            limit: 5,
             with: {
                 items: true,
                 user: true,
@@ -275,13 +234,6 @@ export async function GET(request: NextRequest) {
             .orderBy(desc(inventory.updatedAt))
             .limit(8)
 
-        const sectorProductIdsPromise = sector
-            ? db
-                  .select({ id: products.id })
-                  .from(products)
-                  .where(eq(products.sector, sector))
-            : Promise.resolve([])
-
         async function safeQuery<T>(query: Promise<T>, fallback: T): Promise<T> {
             try { return await query } catch (e) { console.error("Dashboard query failed:", e); return fallback }
         }
@@ -307,7 +259,6 @@ export async function GET(request: NextRequest) {
             inventoryActivityResult,
             stockAdjustmentHistoryResult,
             inventoryHistoryResult,
-            sectorProductIdsResult
         ] = await Promise.all([
             safeQuery(salesPromise, [{ total: 0, count: 0, creditCount: 0 }]),
             safeQuery(revenuePromise, [{ total: 0 }]),
@@ -329,7 +280,6 @@ export async function GET(request: NextRequest) {
             safeQuery(inventoryActivityPromise, []),
             safeQuery(stockAdjustmentHistoryPromise, []),
             safeQuery(inventoryHistoryPromise, []),
-            safeQuery(sectorProductIdsPromise, [])
         ])
 
         const combinedActivity = [
@@ -408,21 +358,8 @@ export async function GET(request: NextRequest) {
         const creditTransactionCount = Number(salesResult[0]?.creditCount || 0)
         const creditSalesRatio = transactionCount > 0 ? Math.round((creditTransactionCount / transactionCount) * 100) : 0
 
-        const sectorProductIds = new Set((sectorProductIdsResult || []).map((item: any) => item.id))
-
-        const sectorRecentTransactions = sector
-            ? recentTransactions
-                  .filter((tx: any) =>
-                      (tx.items || []).some((item: any) => {
-                          return sectorProductIds.has(item.productId)
-                      })
-                  )
-                  .slice(0, 5)
-            : recentTransactions
-
         const stats = {
             period,
-            sector,
             todaySales: Number(salesResult[0]?.total || 0),
             todayTransactionCount: transactionCount,
             monthlyRevenue: Number(revenueResult[0]?.total || 0),
@@ -430,7 +367,7 @@ export async function GET(request: NextRequest) {
             totalCreditBalance: Number(totalCreditResult[0]?.total || 0),
             productsCount: Number(productsSoldResult[0]?.quantity || 0),
             creditSalesRatio: creditSalesRatio,
-            recentTransactions: sectorRecentTransactions,
+            recentTransactions: recentTransactions.slice(0, 5),
             systemAdminActivity: {
                 totalUsers: Number(totalUsersResult[0]?.count || 0),
                 adminUsers: Number(adminUsersResult[0]?.count || 0),

@@ -18,12 +18,12 @@ INSERT INTO "menu_permissions" (href, label, icon, roles, sort_order) VALUES
     ('/inventory/adjustments', 'Stock Adjustments', 'RefreshCw', '{admin,manager}', 7),
     ('/inventory/count', 'Inventory Count', 'ClipboardList', '{admin,manager}', 8),
     ('/stock-movements', 'Stock Movements', 'ArrowLeftRight', '{admin,manager}', 9),
-    ('/stock/transfers', 'Stock Transfers', 'ArrowRightLeft', '{admin,manager}', 10),
+    ('/stock/transfers', 'Transferts de stock', 'ArrowRightLeft', '{admin,manager,stock_manager}', 10),
     ('/expenses', 'Expenses', 'Wallet', '{admin,manager}', 11),
     ('/staff-tables', 'Staff & Tables', 'UserCog', '{admin,manager}', 12),
     ('/clients', 'Clients', 'Users', '{admin,manager,cashier}', 13),
     ('/credit', 'Credit Management', 'CreditCard', '{admin,manager}', 14),
     ('/reports', 'Reports', 'BarChart3', '{admin,manager}', 15),
-npm run migrate    ('/settings', 'Settings', 'Settings', '{admin}', 16),
+    ('/settings', 'Settings', 'Settings', '{admin}', 16),
     ('/notifications', 'Notifications', 'Bell', '{admin,manager,cashier}', 111)
 ON CONFLICT (href) DO NOTHING;

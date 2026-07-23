@@ -1,6 +1,3 @@
-// app/purchases/edit/[id]/page.tsx
-// or app/purchases/[id]/edit/page.tsx  ← adjust path as needed
-
 "use client"
 
 import { useEffect, useState } from "react"
@@ -15,9 +12,11 @@ import { Input } from "@/components/ui/input"
 import { useSuppliers } from "@/hooks/use-suppliers"
 import { useProducts } from "@/hooks/use-products"
 import { usePurchases } from "@/hooks/use-purchases"
+import { useLocations } from "@/hooks/use-locations"
+import { useStockTransfers } from "@/hooks/use-stock-transfers"
 import { formatCurrency } from "@/lib/mock-data"
 import { printReport } from "@/lib/print-report"
-import { ArrowLeft, Loader2, Plus, Trash2, Package, ShoppingCart, XCircle, CheckCircle2, Printer } from "lucide-react"
+import { ArrowLeft, Loader2, Plus, Trash2, Package, ShoppingCart, XCircle, CheckCircle2, Printer, MapPin, Send, ArrowRight, CheckCircle } from "lucide-react"
 import Swal from "sweetalert2"
 import { toast } from "@/components/ui/use-toast"
 import { useAuth } from "@/lib/auth-context"
@@ -27,8 +26,6 @@ interface POItem {
   productName: string
   quantity: number
   cost: number
-  boxes?: number
-  quantityPerBox?: number
 }
 
 export default function EditPurchaseOrderPage() {
@@ -46,12 +43,19 @@ export default function EditPurchaseOrderPage() {
 
   const { suppliers, loading: suppliersLoading } = useSuppliers()
   const { products, loading: productsLoading } = useProducts()
+  const { locations } = useLocations()
+  const { createDirectTransfer } = useStockTransfers()
 
-  const purchasableProducts = products.filter(
-    (p) => p.productType === "ingredient" || (p.productType === "drink" && p.trackStock)
-  )
+  const purchasableProducts = products
   const { updateOrder, cancelOrder, markAsReceived } = usePurchases()
   const { user } = useAuth()
+
+  const [destLocationId, setDestLocationId] = useState("")
+  const [transferQuantities, setTransferQuantities] = useState<Record<string, number>>({})
+  const [isTransferring, setIsTransferring] = useState(false)
+
+  const primaryLocation = locations.find((l: any) => l.type === "primary")
+  const storeLocations = locations.filter((l: any) => l.type !== "primary" && l.isActive)
 
   // Load order data
   useEffect(() => {
@@ -79,30 +83,33 @@ export default function EditPurchaseOrderPage() {
     if (orderId) fetchOrder()
   }, [orderId, router])
 
-  // Enrich items with boxes and quantityPerBox from products once loaded
   useEffect(() => {
     if (products.length > 0 && items.length > 0) {
-      const needsUpdate = items.some((item) => item.boxes === undefined)
+      const needsUpdate = items.some((item) => item.cost === undefined)
       if (needsUpdate) {
         setItems((prev) =>
           prev.map((item) => {
-            if (item.boxes !== undefined) return item
-            const product = products.find((p) => p.id === item.productId)
-            const qpb = product?.quantityPerBox || 1
+            if (item.cost !== undefined) return item
             const qty = Number(item.quantity) || 0
             const cost = Number(item.cost) || 0
             return {
               ...item,
               quantity: qty,
               cost: cost,
-              quantityPerBox: qpb,
-              boxes: qty / qpb,
             }
           })
         )
       }
     }
   }, [products, items])
+
+  useEffect(() => {
+    if (order?.status === "received" && items.length > 0) {
+      const qtys: Record<string, number> = {}
+      items.forEach((i) => { qtys[i.productId] = Number(i.quantity) || 0 })
+      setTransferQuantities(qtys)
+    }
+  }, [order?.status, items])
 
   const isEditable = order?.status === "pending"
 
@@ -116,27 +123,21 @@ export default function EditPurchaseOrderPage() {
       setItems((prev) =>
         prev.map((i) => {
           if (i.productId === selectedProductId) {
-            const nextBoxes = (i.boxes || 1) + 1
-            const qpb = i.quantityPerBox || 1
             return {
               ...i,
-              boxes: nextBoxes,
-              quantity: nextBoxes * qpb,
+              quantity: (i.quantity || 0) + 1,
             }
           }
           return i
         })
       )
     } else {
-      const qpb = product.quantityPerBox || 1
       setItems((prev) => [
         ...prev,
         {
           productId: product.id,
           productName: product.name,
-          boxes: 1,
-          quantityPerBox: qpb,
-          quantity: qpb,
+          quantity: 1,
           cost: 0,
         },
       ])
@@ -144,16 +145,14 @@ export default function EditPurchaseOrderPage() {
     setSelectedProductId("")
   }
 
-  const updateBoxes = (productId: string, newBoxes: number) => {
-    const bxs = Math.max(0, newBoxes)
-    if (bxs === 0) {
+  const updateQuantity = (productId: string, newQty: number) => {
+    const qty = Math.max(0, newQty)
+    if (qty === 0) {
       setItems((prev) => prev.filter((i) => i.productId !== productId))
     } else {
       setItems((prev) =>
         prev.map((i) =>
-          i.productId === productId
-            ? { ...i, boxes: bxs, quantity: bxs * (i.quantityPerBox || 1) }
-            : i
+          i.productId === productId ? { ...i, quantity: qty } : i
         )
       )
     }
@@ -164,26 +163,12 @@ export default function EditPurchaseOrderPage() {
     setItems((prev) => prev.map((i) => (i.productId === productId ? { ...i, cost: numericCost } : i)))
   }
 
-  const updateBoxCost = (productId: string, boxCost: string) => {
-    const numericBoxCost = parseFloat(boxCost) || 0
-    setItems((prev) =>
-      prev.map((i) => {
-        if (i.productId === productId) {
-          const qpb = i.quantityPerBox || 1
-          return { ...i, cost: numericBoxCost / qpb }
-        }
-        return i
-      })
-    )
-  }
-
   const removeItem = (productId: string) => {
     setItems((prev) => prev.filter((i) => i.productId !== productId))
   }
 
   const total = items.reduce((sum, i) => sum + i.quantity * i.cost, 0)
   const totalUnits = items.reduce((sum, i) => sum + Number(i.quantity || 0), 0)
-  const totalBoxes = items.reduce((sum, i) => sum + Number(i.boxes || 0), 0)
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault()
@@ -223,10 +208,38 @@ export default function EditPurchaseOrderPage() {
     }
   }
 
+  const handleTransfer = async () => {
+    if (!destLocationId || !primaryLocation || !user?.id) return
+    const transferItems = Object.entries(transferQuantities)
+      .filter(([, qty]) => qty > 0)
+      .map(([productId, quantity]) => ({ productId, quantity }))
+    if (transferItems.length === 0) {
+      toast({ variant: "destructive", title: "Erreur", description: "Aucune quantité à transférer" })
+      return
+    }
+    setIsTransferring(true)
+    try {
+      const destName = storeLocations.find((l: any) => l.id === destLocationId)?.name || ""
+      await createDirectTransfer({
+        fromLocationId: primaryLocation.id,
+        toLocationId: destLocationId,
+        userId: user.id,
+        notes: `Distribution depuis commande ${order?.purchaseRef || orderId.slice(0, 8)}`,
+        items: transferItems,
+      })
+      toast({ title: "Transfert effectué", description: `Stock transféré vers ${destName}` })
+      setDestLocationId("")
+    } catch (err: any) {
+      toast({ variant: "destructive", title: "Échec du transfert", description: err.message })
+    } finally {
+      setIsTransferring(false)
+    }
+  }
+
   const handleReceiveOrder = async () => {
     const result = await Swal.fire({
       title: "Marquer comme reçu ?",
-      text: "Cela mettra à jour les niveaux de stock.",
+      text: "Les produits seront ajoutés au stock du Principal.",
       icon: "warning",
       showCancelButton: true,
       confirmButtonText: "Oui, recevoir",
@@ -236,8 +249,8 @@ export default function EditPurchaseOrderPage() {
     setIsActionLoading(true)
     try {
       await markAsReceived(orderId, user?.id || "")
-      toast({ title: "Commande reçue", description: "Stock mis à jour." })
-      router.push("/purchases")
+      setOrder((prev: any) => prev ? { ...prev, status: "received" } : prev)
+      toast({ title: "Commande reçue", description: "Stock ajouté au Principal. Vous pouvez maintenant distribuer vers les magasins." })
     } catch (err: any) {
       toast({ variant: "destructive", title: "Échec de la réception", description: err.message })
     } finally {
@@ -261,14 +274,12 @@ export default function EditPurchaseOrderPage() {
       ],
       columns: [
         { header: "Produit", key: "product" },
-        { header: "Caisses", key: "boxes", align: "center" },
-        { header: "Bouteilles", key: "quantity", align: "center" },
+        { header: "Quantité", key: "quantity", align: "center" },
         { header: "Prix unit.", key: "unitPrice", format: "currency", align: "right" },
         { header: "Total", key: "total", format: "currency", align: "right" },
       ],
       rows: items.map((i) => ({
         product: i.productName,
-        boxes: `${i.boxes || 0}`,
         quantity: `${i.quantity}`,
         unitPrice: i.cost,
         total: i.quantity * i.cost,
@@ -324,7 +335,7 @@ export default function EditPurchaseOrderPage() {
                 <span className="font-bold text-lg">{items.length}</span> produits
               </div>
               <div>
-                <span className="font-bold text-lg">{totalUnits}</span> bouteilles
+                <span className="font-bold text-lg">{totalUnits}</span> unités
               </div>
               <Badge variant="outline" className="mt-2">
                 {order.status === "pending"
@@ -430,62 +441,32 @@ export default function EditPurchaseOrderPage() {
                         <TableCell className="font-medium">{item.productName}</TableCell>
                         <TableCell className="text-right">
                           {isEditable ? (
-                            <div className="flex flex-col gap-1 items-end">
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">Unité :</span>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={item.cost}
-                                  onChange={(e) => updateUnitCost(item.productId, e.target.value)}
-                                  className="w-24 text-right h-8"
-                                />
-                              </div>
-                              <div className="flex items-center gap-1.5">
-                                <span className="text-xs text-muted-foreground whitespace-nowrap">Caisse :</span>
-                                <Input
-                                  type="number"
-                                  step="0.01"
-                                  min="0"
-                                  value={(item.cost * (item.quantityPerBox || 1)).toFixed(2)}
-                                  onChange={(e) => updateBoxCost(item.productId, e.target.value)}
-                                  className="w-24 text-right h-8"
-                                />
-                              </div>
-                            </div>
+                            <Input
+                              type="number"
+                              step="0.01"
+                              min="0"
+                              value={item.cost}
+                              onChange={(e) => updateUnitCost(item.productId, e.target.value)}
+                              className="w-24 text-right h-8"
+                            />
                           ) : (
-                            <div className="flex flex-col items-end">
-                              <span className="font-semibold">{formatCurrency(item.cost)}</span>
-                              <span className="text-xs text-muted-foreground">
-                                {formatCurrency(item.cost * (item.quantityPerBox || 1))} / box
-                              </span>
-                            </div>
+                            <span className="font-semibold">{formatCurrency(item.cost)}</span>
                           )}
                         </TableCell>
                         <TableCell className="text-center">
                           {isEditable ? (
-                            <div className="flex flex-col gap-1 items-center">
-                              <div className="flex items-center justify-center gap-2">
-                                <Input
-                                  type="number"
-                                  min="0"
-                                  value={item.boxes || 0}
-                                  onChange={(e) => updateBoxes(item.productId, Number(e.target.value))}
-                                  className="w-20 text-center h-8"
-                                />
-                                <span className="text-sm font-medium">Caisses</span>
-                              </div>
-                              <div className="text-xs text-muted-foreground flex gap-1.5 items-center mt-0.5">
-                                <Badge variant="secondary" className="px-1.5 py-0 text-[10px]">
-                                  {item.quantityPerBox || 1} bouteilles/caisse
-                                </Badge>
-                                <span>=</span>
-                                <span className="font-semibold text-foreground">{item.quantity} total bouteilles</span>
-                              </div>
+                            <div className="flex items-center justify-center gap-2">
+                              <Input
+                                type="number"
+                                min="0"
+                                value={item.quantity || 0}
+                                onChange={(e) => updateQuantity(item.productId, Number(e.target.value))}
+                                className="w-20 text-center h-8"
+                              />
+                              <span className="text-sm font-medium">unités</span>
                             </div>
                           ) : (
-                            <span className="font-semibold">{item.quantity} bouteilles</span>
+                            <span className="font-semibold">{item.quantity} unités</span>
                           )}
                         </TableCell>
                         <TableCell className="text-right font-medium">
@@ -579,6 +560,91 @@ export default function EditPurchaseOrderPage() {
           )}
         </div>
       </form>
+
+      {/* Transfer Panel — shown after receiving */}
+      {order?.status === "received" && primaryLocation && (
+        <Card className="border-emerald-500/30 bg-gradient-to-br from-emerald-500/5 to-transparent">
+          <CardHeader>
+            <CardTitle className="flex items-center gap-2">
+              <Send className="h-5 w-5 text-emerald-600" />
+              Distribution depuis le Principal
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="space-y-4">
+            <div className="flex items-center gap-3 p-3 rounded-lg bg-emerald-500/10 border border-emerald-500/20">
+              <MapPin className="h-5 w-5 text-emerald-600 shrink-0" />
+              <p className="text-sm text-emerald-700">
+                Les produits de cette commande sont disponibles au <strong>{primaryLocation.name}</strong>.
+                Sélectionnez un magasin de destination pour les distribuer.
+              </p>
+            </div>
+
+            <div className="space-y-2">
+              <Label className="text-base font-semibold">Magasin de destination</Label>
+              <Select value={destLocationId} onValueChange={setDestLocationId}>
+                <SelectTrigger className="max-w-md">
+                  <SelectValue placeholder="Choisir un magasin..." />
+                </SelectTrigger>
+                <SelectContent>
+                  {storeLocations.map((l: any) => (
+                    <SelectItem key={l.id} value={l.id}>{l.name}</SelectItem>
+                  ))}
+                </SelectContent>
+              </Select>
+            </div>
+
+            {items.length > 0 && (
+              <div className="rounded-md border overflow-hidden">
+                <Table>
+                  <TableHeader>
+                    <TableRow className="bg-muted/50">
+                      <TableHead>Produit</TableHead>
+                      <TableHead className="text-center w-48">Qté reçue</TableHead>
+                      <TableHead className="text-center w-48">Qté à transférer</TableHead>
+                    </TableRow>
+                  </TableHeader>
+                  <TableBody>
+                    {items.map((item) => (
+                      <TableRow key={item.productId}>
+                        <TableCell className="font-medium">{item.productName}</TableCell>
+                        <TableCell className="text-center font-semibold">{item.quantity}</TableCell>
+                        <TableCell className="text-center">
+                          <Input
+                            type="number"
+                            min="0"
+                            max={Number(item.quantity)}
+                            value={transferQuantities[item.productId] || 0}
+                            onChange={(e) => setTransferQuantities((prev) => ({
+                              ...prev,
+                              [item.productId]: Math.min(Number(e.target.value) || 0, Number(item.quantity)),
+                            }))}
+                            className="w-24 text-center h-8 mx-auto"
+                          />
+                        </TableCell>
+                      </TableRow>
+                    ))}
+                  </TableBody>
+                </Table>
+              </div>
+            )}
+
+            <div className="flex justify-end pt-2">
+              <Button
+                onClick={handleTransfer}
+                disabled={isTransferring || !destLocationId || Object.values(transferQuantities).every((q) => q === 0)}
+                className="gap-2 bg-emerald-600 hover:bg-emerald-700"
+              >
+                {isTransferring ? (
+                  <Loader2 className="h-4 w-4 animate-spin" />
+                ) : (
+                  <ArrowRight className="h-4 w-4" />
+                )}
+                Transférer vers le magasin
+              </Button>
+            </div>
+          </CardContent>
+        </Card>
+      )}
     </div>
   )
 }

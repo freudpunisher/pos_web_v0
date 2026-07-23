@@ -4,7 +4,6 @@ import { useState, useEffect, useMemo } from "react"
 import { useRouter } from "next/navigation"
 import Link from "next/link"
 import { useLocations } from "@/hooks/use-locations"
-import { useUsers } from "@/hooks/use-users"
 import { useAuth } from "@/lib/auth-context"
 import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
@@ -16,7 +15,7 @@ import { Textarea } from "@/components/ui/textarea"
 import { toast } from "@/components/ui/use-toast"
 import {
     ArrowRightLeft, Loader2, Plus, Trash2, Package,
-    Store, FileText, Send, AlertCircle, ChevronLeft, Beer, Layers
+    Store, FileText, Send, AlertCircle, ChevronLeft
 } from "lucide-react"
 
 interface LineItem {
@@ -37,10 +36,9 @@ function uuid(): string {
     })
 }
 
-export default function SortieBarPage() {
+export default function SortieStockPage() {
     const router = useRouter()
     const { locations } = useLocations()
-    const { users } = useUsers()
     const { user } = useAuth()
     const [submitting, setSubmitting] = useState(false)
 
@@ -52,9 +50,7 @@ export default function SortieBarPage() {
     const [stockByLocation, setStockByLocation] = useState<any[]>([])
     const [loadingStock, setLoadingStock] = useState(false)
 
-    const currentUserId = user?.id || users[0]?.id || ""
-
-    const barLocations = useMemo(() => locations.filter((l: any) => l.type === "bar" || l.type === "transitional"), [locations])
+    const activeLocations = useMemo(() => locations.filter((l: any) => l.isActive), [locations])
 
     useEffect(() => {
         if (!fromLocationId) { setStockByLocation([]); return }
@@ -68,11 +64,7 @@ export default function SortieBarPage() {
 
     const availableProducts = useMemo(() =>
         stockByLocation
-            .filter((s: any) =>
-                s.quantityOnHand > 0 &&
-                (s.product?.productType !== "food") &&
-                s.product?.trackStock !== false
-            )
+            .filter((s: any) => s.quantityOnHand > 0)
             .map((s: any) => ({ ...s.product, availableQty: s.quantityOnHand })),
         [stockByLocation]
     )
@@ -113,7 +105,7 @@ export default function SortieBarPage() {
 
     const handleSubmit = async () => {
         const items = lineItems.filter((i) => i.productId && i.quantity)
-        if (!items.length || !currentUserId) return
+        if (!items.length || !user?.id) return
         setSubmitting(true)
         try {
             for (const item of items) {
@@ -126,9 +118,9 @@ export default function SortieBarPage() {
                         productName: product?.name || "Unknown",
                         quantityChange: -parseInt(item.quantity),
                         adjustmentType: "subtraction",
-                        reason: "Consommation bar / cocktail",
-                        notes: notes || "Sortie de stock bar",
-                        userId: currentUserId,
+                        reason: "Sortie de stock",
+                        notes: notes || "Retrait de stock",
+                        userId: user.id,
                         locationId: fromLocationId,
                     }),
                 })
@@ -137,7 +129,7 @@ export default function SortieBarPage() {
                     throw new Error(err.error || `Erreur pour ${product?.name}`)
                 }
             }
-            toast({ title: "Sortie enregistrée", description: `${items.length} produit(s) retiré(s) du stock bar.` })
+            toast({ title: "Sortie enregistrée", description: `${items.length} produit(s) retiré(s) du stock.` })
             router.push("/stock/transfers")
         } catch (err: any) {
             toast({ variant: "destructive", title: "Erreur", description: err.message || "Impossible d'enregistrer la sortie" })
@@ -153,8 +145,8 @@ export default function SortieBarPage() {
                     <Link href="/stock/transfers"><ChevronLeft className="h-5 w-5" /></Link>
                 </Button>
                 <div>
-                    <h1 className="text-2xl font-bold tracking-tight">Sortie Bar</h1>
-                    <p className="text-muted-foreground text-sm">Retirer des produits du stock pour consommation cocktail</p>
+                    <h1 className="text-2xl font-bold tracking-tight">Sortie de stock</h1>
+                    <p className="text-muted-foreground text-sm">Retirer des produits d&apos;un emplacement</p>
                 </div>
             </div>
 
@@ -162,22 +154,22 @@ export default function SortieBarPage() {
                 <Card>
                     <CardHeader>
                         <CardTitle className="text-base flex items-center gap-2">
-                            <Layers className="h-4 w-4" /> Source
+                            <Package className="h-4 w-4" /> Emplacement source
                         </CardTitle>
-                        <CardDescription>Retirer du stock bar pour consommation cocktail</CardDescription>
+                        <CardDescription>Sélectionnez l&apos;emplacement depuis lequel retirer le stock</CardDescription>
                     </CardHeader>
                     <CardContent>
                         <div className="space-y-1.5">
                             <Label className="text-sm font-medium flex items-center gap-1.5">
-                                <Store className="h-4 w-4 text-muted-foreground" /> Depuis (Stock)
+                                <Store className="h-4 w-4 text-muted-foreground" /> Depuis
                             </Label>
                             <Select value={fromLocationId} onValueChange={(v) => {
                                 setFromLocationId(v)
                                 setLineItems(lineItems.map((i) => ({ ...i, productId: "", quantity: "" })))
                             }}>
-                                <SelectTrigger className="h-10"><SelectValue placeholder="Sélectionner un stock..." /></SelectTrigger>
+                                <SelectTrigger className="h-10"><SelectValue placeholder="Sélectionner un emplacement..." /></SelectTrigger>
                                 <SelectContent>
-                                    {barLocations.map((l: any) => (
+                                    {activeLocations.map((l: any) => (
                                         <SelectItem key={l.id} value={l.id}>
                                             <div className="flex items-center gap-2"><Store className="h-4 w-4" /> {l.name}</div>
                                         </SelectItem>
@@ -192,7 +184,7 @@ export default function SortieBarPage() {
                     <CardHeader className="flex flex-row items-center justify-between">
                         <div>
                             <CardTitle className="text-base flex items-center gap-2"><Package className="h-4 w-4" /> Produits</CardTitle>
-                            <CardDescription>Sélectionnez les produits consommés pour les cocktails</CardDescription>
+                            <CardDescription>Sélectionnez les produits à retirer</CardDescription>
                         </div>
                         <Button type="button" variant="outline" size="sm" onClick={addLineItem} disabled={!fromLocationId}>
                             <Plus className="h-4 w-4 mr-1" /> Ajouter
@@ -206,13 +198,13 @@ export default function SortieBarPage() {
                         ) : !fromLocationId ? (
                             <div className="border-2 border-dashed rounded-lg py-12 text-center">
                                 <Store className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
-                                <p className="text-sm text-muted-foreground">Sélectionnez un stock pour voir les produits disponibles</p>
+                                <p className="text-sm text-muted-foreground">Sélectionnez un emplacement pour voir les produits disponibles</p>
                             </div>
                         ) : availableProducts.length === 0 ? (
                             <div className="border-2 border-dashed rounded-lg py-12 text-center">
                                 <AlertCircle className="h-10 w-10 mx-auto text-muted-foreground/40 mb-3" />
                                 <p className="text-sm font-medium text-muted-foreground">Aucun produit disponible</p>
-                                <p className="text-xs text-muted-foreground mt-1">Ce stock n&apos;a pas de produits à retirer</p>
+                                <p className="text-xs text-muted-foreground mt-1">Cet emplacement n&apos;a pas de produits en stock</p>
                             </div>
                         ) : (
                             <div className="border rounded-lg overflow-hidden">
@@ -286,7 +278,7 @@ export default function SortieBarPage() {
                     </CardHeader>
                     <CardContent>
                         <Textarea value={notes} onChange={(e) => setNotes(e.target.value)}
-                            placeholder="e.g. Ingrédients pour cocktails du soir" rows={3} className="resize-none" />
+                            placeholder="ex: Réapprovisionnement interne" rows={3} className="resize-none" />
                     </CardContent>
                 </Card>
 

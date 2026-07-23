@@ -115,6 +115,7 @@ export function Sidebar() {
             menuItems.map((item) => {
               const Icon = iconMap[item.icon]
               const isActive = pathname === item.href
+              const displayLabel = item.href === "/stock/transfers" ? "Transferts de stock" : item.label
               return (
                 <Link key={item.href} href={item.href}>
                   <Button
@@ -126,7 +127,7 @@ export function Sidebar() {
                     )}
                   >
                     {Icon && <Icon className="h-5 w-5 shrink-0" />}
-                    {!collapsed && <span>{item.label}</span>}
+                    {!collapsed && <span>{displayLabel}</span>}
                   </Button>
                 </Link>
               )

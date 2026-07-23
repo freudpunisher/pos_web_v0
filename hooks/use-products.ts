@@ -2,19 +2,17 @@
 
 import { useState, useEffect, useCallback } from "react"
 
-export function useProducts(categoryId?: string, search?: string) {
+export function useProducts(search?: string) {
     const [products, setProducts] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const fetchProducts = useCallback(async (catId?: string, query?: string) => {
+    const fetchProducts = useCallback(async (query?: string) => {
         setLoading(true)
         try {
             const params = new URLSearchParams()
-            const activeCatId = catId || categoryId
             const activeQuery = query !== undefined ? query : search
 
-            if (activeCatId && activeCatId !== "all") params.append("categoryId", activeCatId)
             if (activeQuery) params.append("search", activeQuery)
 
             const response = await fetch(`/api/products?${params.toString()}`)
@@ -26,7 +24,7 @@ export function useProducts(categoryId?: string, search?: string) {
         } finally {
             setLoading(false)
         }
-    }, [categoryId, search])
+    }, [search])
 
     useEffect(() => {
         fetchProducts()

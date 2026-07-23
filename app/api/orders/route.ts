@@ -12,8 +12,8 @@ export async function GET() {
                 items: true,
                 client: true,
                 user: true,
-                waiter: { columns: { id: true, name: true } },
-                table: { columns: { id: true, number: true, section: true } },
+                location: { columns: { id: true, name: true } },
+                deliveryLocation: { columns: { id: true, name: true } },
             },
         })
         return NextResponse.json(orders)
@@ -26,7 +26,7 @@ export async function GET() {
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { items, userId, waiterId, tableId, clientId, notes } = body
+        const { items, userId, clientId, locationId, deliveryLocationId, notes } = body
 
         if (!items || items.length === 0 || !userId) {
             return NextResponse.json({ error: "Items and userId are required" }, { status: 400 })
@@ -43,6 +43,17 @@ export async function POST(request: Request) {
                 { error: "Aucune session caisse ouverte. Veuillez ouvrir la caisse avant d'effectuer une vente." },
                 { status: 400 }
             )
+        }
+
+        // Resolve selling location
+        let saleLocation = null
+        if (locationId) {
+            const [loc] = await db.select().from(locations).where(eq(locations.id, locationId)).limit(1)
+            saleLocation = loc
+        } else {
+            // Default to first store or warehouse
+            const [defaultLoc] = await db.select().from(locations).where(eq(locations.isActive, true)).limit(1)
+            saleLocation = defaultLoc
         }
 
         const total = items.reduce(
@@ -70,9 +81,9 @@ export async function POST(request: Request) {
                 orderStatus: "pending",
                 total: total.toString(),
                 userId,
-                waiterId: waiterId || userId,
-                tableId: tableId || null,
                 clientId: clientId || null,
+                locationId: saleLocation?.id || null,
+                deliveryLocationId: deliveryLocationId || null,
                 reference,
             })
             .returning()
@@ -94,31 +105,25 @@ export async function POST(request: Request) {
             }
             const stockQty = item.quantity * conversionFactor
 
-            // Look up bar location and validate stock before inserting
-            let [saleLocation] = await db
-                .select()
-                .from(locations)
-                .where(eq(locations.type, "bar"))
-                .limit(1)
-
-            // Validate bar stock for tracked products
+            // Look up product info for stock tracking
             const [productInfo] = await db
-                .select({ trackStock: products.trackStock, name: products.name })
+                .select({ name: products.name })
                 .from(products)
                 .where(eq(products.id, item.productId))
                 .limit(1)
 
-            if (productInfo?.trackStock && saleLocation) {
-                const [barStock] = await db
+            // Validate stock at selling location for tracked products
+            if (saleLocation) {
+                const [locationStock] = await db
                     .select({ quantityOnHand: stock.quantityOnHand })
                     .from(stock)
                     .where(and(eq(stock.productId, item.productId), eq(stock.locationId, saleLocation.id)))
                     .limit(1)
 
-                const availableQty = Number(barStock?.quantityOnHand ?? 0)
+                const availableQty = Number(locationStock?.quantityOnHand ?? 0)
                 if (availableQty < stockQty) {
                     return NextResponse.json({
-                        error: `Stock insuffisant au bar pour ${productInfo.name}. Disponible: ${availableQty}, requis: ${stockQty}`
+                        error: `Stock insuffisant au ${saleLocation.name} pour ${productInfo.name}. Disponible: ${availableQty}, requis: ${stockQty}`
                     }, { status: 400 })
                 }
             }
@@ -138,7 +143,7 @@ export async function POST(request: Request) {
                 .set({ stock: sql`${products.stock} - ${stockQty}` })
                 .where(eq(products.id, item.productId))
 
-            // Deduct per-location stock from bar location only
+            // Deduct per-location stock from selling location
             if (saleLocation) {
                 const [existingStock] = await db
                     .select()
@@ -173,14 +178,25 @@ export async function POST(request: Request) {
             }
         }
 
-        // No longer marking table as occupied — a table can have multiple bills simultaneously
+        // Auto-create stock transfer if deliveryLocationId is specified
+        if (deliveryLocationId && saleLocation) {
+            const { stockTransfers } = await import("@/lib/db/schema")
+            await db.insert(stockTransfers).values({
+                fromLocationId: saleLocation.id,
+                toLocationId: deliveryLocationId,
+                userId,
+                transactionId: newOrder.id,
+                status: "pending",
+                notes: `Auto-transfer for order ${reference}`,
+            })
+        }
 
         const order = await db.query.transactions.findFirst({
             where: eq(transactions.id, newOrder.id),
             with: {
                 items: true,
-                waiter: { columns: { id: true, name: true } },
-                table: { columns: { id: true, number: true, section: true } },
+                location: { columns: { id: true, name: true } },
+                deliveryLocation: { columns: { id: true, name: true } },
             },
         })
 

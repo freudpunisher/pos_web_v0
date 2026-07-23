@@ -12,36 +12,30 @@ import { useSettings } from "@/hooks/use-settings"
 import { PaymentDialog } from "@/components/pos/payment-dialog"
 import { printThermal } from "@/lib/thermal-print"
 import {
-  Clock, ChefHat, Bell, Utensils, CheckCircle, XCircle, Loader2,
-  User, Table2, Search, CreditCard, Printer,
+  Clock, CheckCircle, XCircle, Loader2,
+  User, Search, CreditCard, Printer, PackageCheck, ArrowRight,
 } from "lucide-react"
 import { toast } from "sonner"
 import { Separator } from "@/components/ui/separator"
 
 const statusColors: Record<string, string> = {
   pending: "bg-amber-500/20 text-amber-700 dark:text-amber-400 border-amber-500/30",
-  preparing: "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
-  ready: "bg-green-500/20 text-green-700 dark:text-green-400 border-green-500/30",
-  served: "bg-purple-500/20 text-purple-700 dark:text-purple-400 border-purple-500/30",
-  paid: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400",
+  confirmed: "bg-blue-500/20 text-blue-700 dark:text-blue-400 border-blue-500/30",
+  completed: "bg-emerald-500/20 text-emerald-700 dark:text-emerald-400 border-emerald-500/30",
   cancelled: "bg-red-500/20 text-red-700 dark:text-red-400",
 }
 
 const statusLabels: Record<string, string> = {
   pending: "En attente",
-  preparing: "En préparation",
-  ready: "Prêt",
-  served: "Servi",
-  paid: "Payé",
+  confirmed: "Confirmé",
+  completed: "Terminé",
   cancelled: "Annulé",
 }
 
 const statusIcons: Record<string, any> = {
   pending: Clock,
-  preparing: ChefHat,
-  ready: Bell,
-  served: Utensils,
-  paid: CheckCircle,
+  confirmed: ArrowRight,
+  completed: CheckCircle,
   cancelled: XCircle,
 }
 
@@ -54,17 +48,15 @@ export default function OrdersPage() {
   const [paymentDialog, setPaymentDialog] = useState<{ open: boolean; order: any | null }>({ open: false, order: null })
 
   const statusTabs = [
-    { key: "active", label: "Actif", icon: ChefHat },
+    { key: "active", label: "Actif", icon: Clock },
     { key: "pending", label: "En attente", icon: Clock },
-    { key: "preparing", label: "En préparation", icon: ChefHat },
-    { key: "ready", label: "Prêt", icon: Bell },
-    { key: "served", label: "Servi", icon: Utensils },
-    { key: "paid", label: "Payé", icon: CheckCircle },
+    { key: "confirmed", label: "Confirmé", icon: ArrowRight },
+    { key: "completed", label: "Terminé", icon: CheckCircle },
     { key: "cancelled", label: "Annulé", icon: XCircle },
   ]
 
   const activeOrders = useMemo(() => {
-    return orders.filter((o) => !["paid", "cancelled"].includes(o.orderStatus))
+    return orders.filter((o) => !["completed", "cancelled"].includes(o.orderStatus))
   }, [orders])
 
   const filteredOrders = useMemo(() => {
@@ -81,7 +73,7 @@ export default function OrdersPage() {
   }, [orders, activeOrders, filter, search])
 
   const statusCounts = useMemo(() => {
-    const counts: Record<string, number> = { pending: 0, preparing: 0, ready: 0, served: 0, paid: 0, cancelled: 0 }
+    const counts: Record<string, number> = { pending: 0, confirmed: 0, completed: 0, cancelled: 0 }
     orders.forEach((o) => { counts[o.orderStatus] = (counts[o.orderStatus] || 0) + 1 })
     return counts
   }, [orders])
@@ -98,7 +90,7 @@ export default function OrdersPage() {
   const handlePayment = async ({ paymentMethod, clientId }: { paymentMethod: "cash" | "credit"; clientId?: string }) => {
     if (!paymentDialog.order || !user) return
     try {
-      await updateOrderStatus(paymentDialog.order.id, { orderStatus: "paid", paymentMethod, clientId })
+      await updateOrderStatus(paymentDialog.order.id, { orderStatus: "completed", paymentMethod, clientId })
       toast.success(`Paiement de ${formatCurrency(Number(paymentDialog.order.total))} reçu par ${paymentMethod}`)
       setPaymentDialog({ open: false, order: null })
     } catch (err: any) {
@@ -191,27 +183,14 @@ export default function OrdersPage() {
             const items = order.items || []
             return (
               <Card key={order.id} className="border-border/50 hover:shadow-lg transition-all group overflow-hidden">
-                <div className={`h-1 w-full ${order.orderStatus === "pending" ? "bg-amber-500" : order.orderStatus === "preparing" ? "bg-blue-500" : order.orderStatus === "ready" ? "bg-green-500" : order.orderStatus === "served" ? "bg-purple-500" : order.orderStatus === "paid" ? "bg-emerald-500" : "bg-red-500"}`} />
+                <div className={`h-1 w-full ${order.orderStatus === "pending" ? "bg-amber-500" : order.orderStatus === "confirmed" ? "bg-blue-500" : order.orderStatus === "completed" ? "bg-emerald-500" : "bg-red-500"}`} />
                 <CardHeader className="pb-3">
                   <div className="flex items-start justify-between">
                     <div>
                       <CardTitle className="flex items-center gap-2">
                         <span className="text-sm font-mono font-bold">#{order.id.slice(0, 8)}</span>
-                        {order.table && (
-                          <Badge variant="outline" className="text-xs font-normal">
-                            <Table2 className="h-3 w-3 mr-1" /> T{order.table.number}
-                          </Badge>
-                        )}
                       </CardTitle>
                       <div className="flex items-center gap-3 mt-1.5 text-xs text-muted-foreground">
-                        {order.waiter && (
-                          <span className="flex items-center gap-1">
-                            <User className="h-3 w-3" /> {order.waiter.name}
-                          </span>
-                        )}
-                        {order.table?.section && (
-                          <span>{order.table.section}</span>
-                        )}
                         <span>{new Date(order.createdAt || order.updatedAt).toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</span>
                       </div>
                     </div>
@@ -247,26 +226,16 @@ export default function OrdersPage() {
                       </Button>
 
                       {order.orderStatus === "pending" && (
-                        <Button size="sm" onClick={() => handleStatus(order.id, "preparing")}>
-                          <ChefHat className="h-3.5 w-3.5 mr-1" /> Préparer
+                        <Button size="sm" onClick={() => handleStatus(order.id, "confirmed")}>
+                          <ArrowRight className="h-3.5 w-3.5 mr-1" /> Confirmer
                         </Button>
                       )}
-                      {order.orderStatus === "preparing" && (
-                        <Button size="sm" onClick={() => handleStatus(order.id, "ready")}>
-                          <Bell className="h-3.5 w-3.5 mr-1" /> Prêt
-                        </Button>
-                      )}
-                      {order.orderStatus === "ready" && (
-                        <Button size="sm" onClick={() => handleStatus(order.id, "served")}>
-                          <Utensils className="h-3.5 w-3.5 mr-1" /> Servir
-                        </Button>
-                      )}
-                      {order.orderStatus === "served" && (
+                      {order.orderStatus === "confirmed" && (
                         <Button size="sm" onClick={() => setPaymentDialog({ open: true, order })}>
                           <CreditCard className="h-3.5 w-3.5 mr-1" /> Paiement
                         </Button>
                       )}
-                      {!["paid", "cancelled"].includes(order.orderStatus) && (
+                      {!["completed", "cancelled"].includes(order.orderStatus) && (
                         <Button
                           size="sm"
                           variant="ghost"

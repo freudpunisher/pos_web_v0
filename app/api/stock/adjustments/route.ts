@@ -43,7 +43,7 @@ export async function POST(request: Request) {
             }).returning()
 
             // 2. Update the stock table (specific location if provided, otherwise all)
-            const targetLocationId = locationId || (await resolveWarehouse(tx, "ingredient")).id
+            const targetLocationId = locationId || (await resolveWarehouse(tx)).id
             const [existingStock] = await tx
                 .select()
                 .from(stock)

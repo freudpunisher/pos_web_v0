@@ -5,8 +5,7 @@ import { Badge } from "@/components/ui/badge"
 import { Separator } from "@/components/ui/separator"
 import type { Product } from "@/lib/types"
 import { formatCurrency, getStockStatus } from "@/lib/mock-data"
-import { Package, Tag, DollarSign, Warehouse, AlertTriangle } from "lucide-react"
-import Image from "next/image"
+import { Package, DollarSign, Warehouse, AlertTriangle } from "lucide-react"
 
 interface ProductDetailsModalProps {
   product: Product | null
@@ -42,25 +41,14 @@ export function ProductDetailsModal({ product, open, onOpenChange }: ProductDeta
         </DialogHeader>
 
         <div className="grid gap-6 md:grid-cols-2">
-          <div className="relative aspect-square overflow-hidden rounded-lg bg-secondary">
-            {product.image ? (
-              <Image src={product.image || "/placeholder.svg"} alt={product.name} fill className="object-cover" />
-            ) : (
-              <div className="flex h-full items-center justify-center">
-                <Package className="h-20 w-20 text-muted-foreground" />
-              </div>
-            )}
+          <div className="flex items-center justify-center rounded-lg bg-secondary aspect-square">
+            <Package className="h-20 w-20 text-muted-foreground" />
           </div>
 
           <div className="space-y-4">
             <div>
               <h3 className="text-xl font-semibold">{product.name}</h3>
               <p className="text-sm text-muted-foreground">{product.sku}</p>
-            </div>
-
-            <div className="flex items-center gap-2">
-              <Tag className="h-4 w-4 text-muted-foreground" />
-              <span className="text-sm">{product.category}</span>
             </div>
 
             <Separator />

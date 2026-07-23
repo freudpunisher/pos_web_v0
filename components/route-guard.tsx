@@ -28,7 +28,6 @@ const routePermissions: Record<string, string[]> = {
   "/clients": ["admin", "manager", "cashier"],
   "/credit": ["admin", "manager", "cashier"],
   "/finance": ["admin", "manager"],
-  "/finance/cuisine": ["admin", "manager"],
   "/finance/reports": ["admin", "manager"],
   "/finance/expenses": ["admin", "manager"],
   "/finance/payments": ["admin", "manager"],
@@ -37,12 +36,10 @@ const routePermissions: Record<string, string[]> = {
   "/notifications": ["admin", "manager", "cashier", "stock_manager"],
   "/suppliers": ["admin", "manager", "stock_manager"],
   "/users": ["admin"],
-  "/profile": ["admin", "manager", "cashier", "waiter", "chef"],
-  "/bakery": ["admin", "manager", "cashier"],
-  "/orders": ["admin", "manager", "waiter"],
+  "/profile": ["admin", "manager", "cashier"],
+  "/orders": ["admin", "manager", "cashier"],
   "/stock": ["admin", "manager", "stock_manager"],
   "/locations": ["admin", "manager"],
-  "/tables": ["admin", "manager", "waiter"],
 }
 
 export function RouteGuard({ children, allowedRoles, redirectTo = "/forbidden" }: RouteGuardProps) {

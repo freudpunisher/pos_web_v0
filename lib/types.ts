@@ -1,8 +1,17 @@
-export type UserRole = "admin" | "manager" | "cashier" | "waiter" | "chef"
+export type UserRole = "admin" | "manager" | "cashier" | "stock_manager"
 export type CaisseSessionStatus = "open" | "closed"
 export type CaisseMovementType = "in" | "out"
-export type ProductType = "drink" | "food" | "ingredient" | "others"
-export type OrderStatus = "pending" | "preparing" | "ready" | "served" | "paid" | "cancelled"
+export type OrderStatus = "pending" | "confirmed" | "completed" | "cancelled"
+
+export interface ProductTypeRecord {
+  id: string
+  name: string
+  slug: string
+  icon: string | null
+  color: string | null
+  sortOrder: number | null
+  isActive: boolean
+}
 
 export interface User {
   id: string
@@ -28,13 +37,11 @@ export interface Product {
   id: string
   sku: string
   name: string
-  category: string
-  productType: ProductType
+  productTypeId: string | null
+  productTypeName?: string
   price: number
   stock: number
   minStock: number
-  trackStock: boolean
-  image?: string
   sellingUnits?: SellingUnit[]
 }
 
@@ -76,11 +83,11 @@ export interface Transaction {
   clientId?: string
   items: TransactionItem[]
   userId: string
-  waiterId?: string
-  tableId?: string
+  locationId?: string
+  deliveryLocationId?: string
   reference?: string
-  waiter?: { id: string; name: string }
-  table?: { id: string; number: number; section?: string }
+  location?: { id: string; name: string }
+  deliveryLocation?: { id: string; name: string }
 }
 
 export interface TransactionItem {
@@ -172,16 +179,8 @@ export interface Category {
 export interface Location {
   id: string
   name: string
-  type: "principal" | "transitional" | "bar" | "kitchen" | "bakery" | "restaurant" | "stock"
+  type: "primary" | "store" | "branch" | "delivery_point"
   isActive: boolean
-}
-
-export interface RestoTable {
-  id: string
-  number: number
-  capacity: number
-  status: "free" | "occupied" | "reserved"
-  section?: string
 }
 
 export interface StockTransfer {
@@ -191,6 +190,7 @@ export interface StockTransfer {
   toLocationId: string
   quantity: number
   userId: string
+  transactionId?: string | null
   date: string
   notes?: string
   product?: { name: string; sku: string }

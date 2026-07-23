@@ -7,11 +7,11 @@ import db from "../lib/db"
 import { locations, stock, stockTransfers, stockTransferItems, stockMovements, stockAdjustments } from "../lib/db/schema"
 
 const SEED_LOCATIONS = [
-    { name: "Drink Warehouse", type: "principal" as const, isActive: true },
-    { name: "Ingredient Warehouse", type: "principal" as const, isActive: true },
-    { name: "Main Transitional Stock", type: "transitional" as const, isActive: true },
-    { name: "Main Bar", type: "bar" as const, isActive: true },
-    { name: "Main Kitchen", type: "kitchen" as const, isActive: true },
+    { name: "Principal", type: "primary" as const, isActive: true },
+    { name: "Stock Principal", type: "primary" as const, isActive: true },
+    { name: "Main Store", type: "store" as const, isActive: true },
+    { name: "Branch North", type: "branch" as const, isActive: true },
+    { name: "Delivery Point Central", type: "delivery_point" as const, isActive: true },
 ]
 
 async function seedLocations() {

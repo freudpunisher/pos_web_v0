@@ -1,14 +1,12 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { transactions, tables as tablesSchema, clients, creditRecords } from "@/lib/db/schema"
+import { transactions, clients, creditRecords } from "@/lib/db/schema"
 import { eq, sql } from "drizzle-orm"
 
 const validTransitions: Record<string, string[]> = {
-    pending: ["preparing", "paid", "cancelled"],
-    preparing: ["ready", "paid", "cancelled"],
-    ready: ["served", "paid", "cancelled"],
-    served: ["paid", "cancelled"],
-    paid: [],
+    pending: ["confirmed", "completed", "cancelled"],
+    confirmed: ["completed", "cancelled"],
+    completed: [],
     cancelled: [],
 }
 
@@ -39,7 +37,7 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
         const updateData: any = {}
         if (orderStatus) updateData.orderStatus = orderStatus
 
-        if (orderStatus === "paid") {
+        if (orderStatus === "completed") {
             updateData.status = "completed"
             if (paymentMethod) updateData.paymentMethod = paymentMethod
             if (clientId) updateData.clientId = clientId
@@ -55,16 +53,8 @@ export async function PATCH(request: Request, { params }: { params: Promise<{ id
             .where(eq(transactions.id, id))
             .returning()
 
-        // Free table when order is paid or cancelled
-        if ((orderStatus === "paid" || orderStatus === "cancelled") && order.tableId) {
-            await db
-                .update(tablesSchema)
-                .set({ status: "free" })
-                .where(eq(tablesSchema.id, order.tableId))
-        }
-
         // Update client credit balance and create credit record for credit payments
-        if (orderStatus === "paid" && paymentMethod === "credit" && clientId) {
+        if (orderStatus === "completed" && paymentMethod === "credit" && clientId) {
             await db
                 .update(clients)
                 .set({

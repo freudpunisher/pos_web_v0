@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
 import { notifications, stock, products } from "@/lib/db/schema"
-import { eq, and, desc, sql, ne } from "drizzle-orm"
+import { eq, and, desc, sql } from "drizzle-orm"
 
 export async function GET() {
     try {
@@ -35,7 +35,6 @@ export async function POST() {
                 and(
                     sql`${stock.quantityOnHand} <= ${stock.reorderLevel}`,
                     sql`${stock.quantityOnHand} > 0`,
-                    ne(products.productType, "food")
                 )
             )
 
@@ -50,7 +49,6 @@ export async function POST() {
             .where(
                 and(
                     eq(stock.quantityOnHand, "0"),
-                    ne(products.productType, "food")
                 )
             )
 

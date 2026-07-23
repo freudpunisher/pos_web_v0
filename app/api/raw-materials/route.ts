@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { products, categories, stock } from "@/lib/db/schema"
+import { products, stock } from "@/lib/db/schema"
 import { eq, desc, sql, and } from "drizzle-orm"
 import { resolveWarehouse } from "@/lib/db/location-utils"
 
@@ -9,7 +9,7 @@ export async function GET(request: Request) {
     const search = searchParams.get("search")
 
     try {
-        const conditions = [eq(products.type, 'raw_material')]
+        const conditions: any[] = []
         if (search) {
             conditions.push(sql`${products.name} ILIKE ${`%${search}%`} OR ${products.sku} ILIKE ${`%${search}%`}`)
         }
@@ -19,17 +19,12 @@ export async function GET(request: Request) {
                 id: products.id,
                 sku: products.sku,
                 name: products.name,
-                unit: products.unit,
                 cost: products.cost,
                 stock: products.stock,
                 minStock: products.minStock,
-                categoryId: products.categoryId,
-                categoryName: categories.name,
-                image: products.image,
             })
             .from(products)
-            .leftJoin(categories, eq(products.categoryId, categories.id))
-            .where(and(...conditions))
+                .where(conditions.length ? and(...conditions) : undefined)
             .orderBy(desc(products.name))
 
         return NextResponse.json(rawMaterials)
@@ -42,11 +37,11 @@ export async function GET(request: Request) {
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { name, categoryId, cost, minStock, unit, image } = body
+        const { name, cost, minStock } = body
         let { sku } = body
 
-        if (!name || !cost || !categoryId) {
-            return NextResponse.json({ error: "Missing required fields (name, cost, category)" }, { status: 400 })
+        if (!name || !cost) {
+            return NextResponse.json({ error: "Missing required fields (name, cost)" }, { status: 400 })
         }
 
         // Auto-generate SKU for raw materials
@@ -62,20 +57,15 @@ export async function POST(request: Request) {
                 .values({
                     sku,
                     name,
-                    categoryId,
-                    type: 'raw_material',
-                    sector: "Boulangerie",
-                    unit: unit || 'kg',
                     price: '0',
                     cost: (cost || 0).toString(),
                     stock: "0",
                     minStock: (minStock || 0).toString(),
-                    image,
                 })
                 .returning()
 
             // Initialize stock record at principal warehouse
-            const warehouse = await resolveWarehouse(tx, 'raw_material')
+            const warehouse = await resolveWarehouse(tx)
             await tx.insert(stock).values({
                 productId: newProduct.id,
                 locationId: warehouse.id,

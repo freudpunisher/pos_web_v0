@@ -12,7 +12,7 @@ import { useSuppliers } from "@/hooks/use-suppliers"
 import { formatCurrency } from "@/lib/mock-data"
 import { printReport } from "@/lib/print-report"
 import { SupplierFormDialog } from "@/components/inventory/supplier-form-dialog"
-import { Truck, Package, DollarSign, Clock, Building2, Phone, Mail, MapPin, Loader2, AlertCircle, Plus, PowerOff, Power, Edit, Printer, Search, X } from "lucide-react"
+import { Truck, Package, DollarSign, Clock, Building2, Phone, Mail, MapPin, Loader2, AlertCircle, Plus, PowerOff, Power, Edit, Printer, Search, X, Send } from "lucide-react"
 import { useState, useMemo } from "react"
 
 export default function PurchasesPage() {
@@ -31,7 +31,6 @@ export default function PurchasesPage() {
     toggleSupplierStatus
   } = useSuppliers()
 
-  const [sectorFilter, setSectorFilter] = useState("all")
   const [productFilter, setProductFilter] = useState("all")
   const [startDate, setStartDate] = useState("")
   const [endDate, setEndDate] = useState("")
@@ -44,9 +43,6 @@ export default function PurchasesPage() {
 
   const filteredOrders = useMemo(() => {
     let filtered = orders
-    if (sectorFilter !== "all") {
-      filtered = filtered.filter((po) => po.sector === sectorFilter)
-    }
     if (productFilter !== "all") {
       filtered = filtered.filter((po) =>
         (po.items || []).some((i: any) => i.productName === productFilter)
@@ -61,7 +57,7 @@ export default function PurchasesPage() {
       filtered = filtered.filter((po) => new Date(po.date) <= e)
     }
     return filtered
-  }, [orders, sectorFilter, productFilter, startDate, endDate])
+  }, [orders, productFilter, startDate, endDate])
 
   const pendingCount = orders.filter((po) => po.status === "pending").length
   const receivedCount = orders.filter((po) => po.status === "received").length
@@ -213,6 +209,11 @@ export default function PurchasesPage() {
               <div>
                 <p className="text-sm text-muted-foreground">Reçues</p>
                 <p className="text-2xl font-bold text-emerald-600">{receivedCount}</p>
+                {receivedCount > 0 && (
+                  <p className="text-xs text-blue-600 flex items-center gap-1 mt-1">
+                    <Send className="h-3 w-3" /> À distribuer
+                  </p>
+                )}
               </div>
               <Package className="h-8 w-8 text-emerald-600 opacity-80" />
             </div>
@@ -236,17 +237,6 @@ export default function PurchasesPage() {
       <Card className="border-border/50">
         <CardContent className="p-4">
           <div className="flex flex-wrap items-center gap-3">
-            <Select value={sectorFilter} onValueChange={setSectorFilter}>
-              <SelectTrigger className="w-36 h-10">
-                <SelectValue placeholder="Secteur" />
-              </SelectTrigger>
-              <SelectContent>
-                <SelectItem value="all">Tous secteurs</SelectItem>
-                <SelectItem value="Alimentation">Alimentation</SelectItem>
-                <SelectItem value="Bar">Bar</SelectItem>
-                <SelectItem value="Cuisine">Cuisine</SelectItem>
-              </SelectContent>
-            </Select>
             <div className="relative flex-1 max-w-xs">
               <Search className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
               <Select value={productFilter} onValueChange={setProductFilter}>
@@ -317,7 +307,14 @@ export default function PurchasesPage() {
                         <TableCell className="text-right font-medium">
                           {formatCurrency(parseFloat(order.total) || 0)}
                         </TableCell>
-                        <TableCell>{getStatusBadge(order.status)}</TableCell>
+                        <TableCell className="flex items-center gap-1.5">
+                          {getStatusBadge(order.status)}
+                          {order.status === "received" && (
+                            <Badge className="bg-blue-500/20 text-blue-700 dark:text-blue-400 text-xs">
+                              À distribuer
+                            </Badge>
+                          )}
+                        </TableCell>
                       </TableRow>
                     ))}
                   </TableBody>

@@ -2,7 +2,6 @@
 
 import { useState, useEffect } from "react"
 import { Plus, Search, Package, AlertCircle, TrendingDown } from "lucide-react"
-import { useRouter } from "next/navigation"
 
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -24,45 +23,23 @@ import {
     DialogTrigger,
 } from "@/components/ui/dialog"
 import { Label } from "@/components/ui/label"
-import {
-    Select,
-    SelectContent,
-    SelectItem,
-    SelectTrigger,
-    SelectValue,
-} from "@/components/ui/select"
-import { Card, CardContent, CardHeader, CardTitle, CardDescription } from "@/components/ui/card"
-import { Badge } from "@/components/ui/badge"
+import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
 import { toast } from "sonner"
-import { useUnits } from "@/hooks/use-units"
-import { useCategories } from "@/hooks/use-products"
 import { useSettings } from "@/hooks/use-settings"
 
 export default function RawMaterialsPage() {
-    const router = useRouter()
     const { settings } = useSettings()
     const [materials, setMaterials] = useState<any[]>([])
     const [loading, setLoading] = useState(true)
     const [search, setSearch] = useState("")
     const [isCreateOpen, setIsCreateOpen] = useState(false)
-    const { categories, loading: categoriesLoading } = useCategories()
-    const { units, loading: unitsLoading } = useUnits()
 
     const currencySymbol = settings?.currencySymbol || "Fbu"
 
-    const unitLabel = (code: string) => {
-        const unit = units.find((u) => u.code === code)
-        if (!unit) return code
-        return `${unit.name} (${unit.symbol || unit.code})`
-    }
-
-    // Form State
     const [formData, setFormData] = useState({
         name: "",
         cost: "",
         minStock: "10",
-        unit: "unit",
-        categoryId: "",
     })
 
     useEffect(() => {
@@ -90,8 +67,8 @@ export default function RawMaterialsPage() {
     }
 
     const handleCreate = async () => {
-        if (!formData.name.trim() || !formData.cost || !formData.categoryId) {
-            toast.error("Nom, coût et catégorie sont requis.")
+        if (!formData.name.trim() || !formData.cost) {
+            toast.error("Nom et coût sont requis.")
             return
         }
         try {
@@ -102,16 +79,16 @@ export default function RawMaterialsPage() {
             })
 
             if (res.ok) {
-                toast.success("Raw material created")
+                toast.success("Matière première créée")
                 setIsCreateOpen(false)
                 fetchMaterials()
-                setFormData({ name: "", cost: "", minStock: "10", unit: "unit", categoryId: "" })
+                setFormData({ name: "", cost: "", minStock: "10" })
             } else {
                 const err = await res.json()
-                toast.error(err.error || "Failed to create")
+                toast.error(err.error || "Échec de la création")
             }
         } catch (error) {
-            toast.error("Failed to create")
+            toast.error("Échec de la création")
         }
     }
 
@@ -160,69 +137,22 @@ export default function RawMaterialsPage() {
                                     />
                                 </div>
                                 <div className="grid gap-2">
-                                    <Label htmlFor="unit">Unité</Label>
-                                    <Select
-                                        value={formData.unit}
-                                        onValueChange={(val) => setFormData({ ...formData, unit: val })}
-                                    >
-                                    <SelectTrigger>
-                                        <SelectValue />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                            {units.length === 0 ? (
-                                                <>
-                                                    <SelectItem value="kg">Kilogramme (kg)</SelectItem>
-                                                    <SelectItem value="g">Gramme (g)</SelectItem>
-                                                    <SelectItem value="l">Litre (L)</SelectItem>
-                                                    <SelectItem value="ml">Millilitre (ml)</SelectItem>
-                                                    <SelectItem value="unit">Unité</SelectItem>
-                                                </>
-                                            ) : (
-                                                units.map((unit) => (
-                                                    <SelectItem key={unit.id} value={unit.code}>
-                                                        {unit.name} ({unit.symbol || unit.code})
-                                                    </SelectItem>
-                                                ))
-                                            )}
-                                    </SelectContent>
-                                </Select>
-                                {unitsLoading && <span className="text-xs text-muted-foreground">Chargement des unités...</span>}
+                                    <Label htmlFor="minStock">Stock Minimum</Label>
+                                    <Input
+                                        id="minStock"
+                                        type="number"
+                                        value={formData.minStock}
+                                        onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
+                                    />
                                 </div>
                             </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="category">Catégorie</Label>
-                                <Select
-                                    value={formData.categoryId}
-                                    onValueChange={(val) => setFormData({ ...formData, categoryId: val })}
-                                >
-                                    <SelectTrigger>
-                                        <SelectValue placeholder={categoriesLoading ? "Chargement..." : "Choisir une catégorie"} />
-                                    </SelectTrigger>
-                                    <SelectContent>
-                                        {categories.map((cat: any) => (
-                                            <SelectItem key={cat.id} value={cat.id}>
-                                                {cat.name}
-                                            </SelectItem>
-                                        ))}
-                                    </SelectContent>
-                                </Select>
-                            </div>
-                            <div className="grid gap-2">
-                                <Label htmlFor="minStock">Stock Minimum (Alerte)</Label>
-                                <Input
-                                    id="minStock"
-                                    type="number"
-                                    value={formData.minStock}
-                                    onChange={(e) => setFormData({ ...formData, minStock: e.target.value })}
-                                />
-                            </div>
-        </div>
-        <DialogFooter>
+                        </div>
+                        <DialogFooter>
                             <Button type="button" variant="outline" onClick={() => setIsCreateOpen(false)}>Annuler</Button>
                             <Button
                                 type="button"
                                 onClick={handleCreate}
-                                disabled={!formData.name.trim() || !formData.cost || !formData.categoryId}
+                                disabled={!formData.name.trim() || !formData.cost}
                             >
                                 Créer
                             </Button>
@@ -231,11 +161,10 @@ export default function RawMaterialsPage() {
                 </Dialog>
             </div>
 
-            {/* Summary Cards */}
             <div className="grid gap-4 md:grid-cols-3">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Référence Totales</CardTitle>
+                        <CardTitle className="text-sm font-medium">Références Totales</CardTitle>
                         <Package className="h-4 w-4 text-muted-foreground" />
                     </CardHeader>
                     <CardContent>
@@ -260,7 +189,7 @@ export default function RawMaterialsPage() {
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-destructive">
-                            {materials.filter(m => m.stock <= m.minStock).length}
+                            {materials.filter(m => Number(m.stock) <= Number(m.minStock)).length}
                         </div>
                     </CardContent>
                 </Card>
@@ -284,7 +213,6 @@ export default function RawMaterialsPage() {
                         <TableRow>
                             <TableHead>SKU</TableHead>
                             <TableHead>Nom</TableHead>
-                            <TableHead>Unité</TableHead>
                             <TableHead className="text-right">Coût</TableHead>
                             <TableHead className="text-right">Stock</TableHead>
                             <TableHead className="text-right">Actions</TableHead>
@@ -293,21 +221,20 @@ export default function RawMaterialsPage() {
                     <TableBody>
                         {loading ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Chargement...</TableCell>
                             </TableRow>
                         ) : materials.length === 0 ? (
                             <TableRow>
-                                <TableCell colSpan={6} className="text-center py-8 text-muted-foreground">Aucune matière première trouvée</TableCell>
+                                <TableCell colSpan={5} className="text-center py-8 text-muted-foreground">Aucune matière première trouvée</TableCell>
                             </TableRow>
                         ) : (
                             materials.map((item) => (
                                 <TableRow key={item.id}>
                                     <TableCell className="font-mono text-xs">{item.sku}</TableCell>
                                     <TableCell className="font-medium">{item.name}</TableCell>
-                                    <TableCell><Badge variant="outline">{unitLabel(item.unit)}</Badge></TableCell>
                                     <TableCell className="text-right">{Number(item.cost).toLocaleString()} {currencySymbol}</TableCell>
                                     <TableCell className="text-right">
-                                        <span className={Number(item.stock) <= item.minStock ? "text-destructive font-bold" : ""}>
+                                        <span className={Number(item.stock) <= Number(item.minStock) ? "text-destructive font-bold" : ""}>
                                             {Number(item.stock)}
                                         </span>
                                     </TableCell>

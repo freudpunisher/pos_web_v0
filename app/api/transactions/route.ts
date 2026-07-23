@@ -13,7 +13,6 @@ function fmt(date: Date) {
 export async function GET(request: NextRequest) {
     try {
         const searchParams = request.nextUrl.searchParams
-        const sector = searchParams.get("sector")
         const dateFrom = searchParams.get("dateFrom")
         const dateTo = searchParams.get("dateTo")
 
@@ -41,21 +40,7 @@ export async function GET(request: NextRequest) {
             orderBy: (transactions, { desc }) => [desc(transactions.date)],
         })
 
-        if (!sector) {
-            return NextResponse.json(allTransactions)
-        }
-
-        const sectorProducts = await db
-            .select({ id: products.id })
-            .from(products)
-            .where(eq(products.sector, sector))
-        const sectorProductIds = new Set(sectorProducts.map((p) => p.id))
-
-        const filteredTransactions = allTransactions.filter((tx: any) =>
-            (tx.items || []).some((item: any) => sectorProductIds.has(item.productId))
-        )
-
-        return NextResponse.json(filteredTransactions)
+        return NextResponse.json(allTransactions)
     } catch (error) {
         console.error("Failed to fetch transactions:", error)
         return NextResponse.json({ error: "Failed to fetch transactions" }, { status: 500 })
@@ -147,6 +132,8 @@ export async function POST(request: Request) {
                     invoiceRef,
                     clientId: sanitizedClientId,
                     userId: sanitizedUserId,
+                    locationId: body.locationId || null,
+                    deliveryLocationId: body.deliveryLocationId || null,
                     reference,
                 })
                 .returning()
@@ -194,11 +181,8 @@ export async function POST(request: Request) {
                     .select({
                         id: products.id,
                         name: products.name,
-                        productType: products.productType,
-                        trackStock: products.trackStock,
                         stock: products.stock,
                         minStock: products.minStock,
-                        productType: products.productType,
                     })
                     .from(products)
                     .where(eq(products.id, item.productId))
@@ -207,9 +191,21 @@ export async function POST(request: Request) {
                     throw new Error(`Product not found: ${item.productId}`)
                 }
 
-                const targetLocation = normalizedType === "sale"
-                    ? await tx.select().from(locations).where(eq(locations.type, "bar")).limit(1).then(r => r[0])
-                    : await resolveWarehouse(tx, product?.productType || "ingredient")
+                // For sales: use the provided locationId, or fall back to first active location
+                // For purchases: resolve to the appropriate warehouse by product type
+                let targetLocation
+                if (normalizedType === "sale") {
+                    if (body.locationId) {
+                        const [loc] = await tx.select().from(locations).where(eq(locations.id, body.locationId)).limit(1)
+                        targetLocation = loc
+                    }
+                    if (!targetLocation) {
+                        const [defaultLoc] = await tx.select().from(locations).where(eq(locations.isActive, true)).limit(1)
+                        targetLocation = defaultLoc
+                    }
+                } else {
+                    targetLocation = await resolveWarehouse(tx)
+                }
 
                 let barQty = 0
                 if (normalizedType === "sale" && targetLocation) {
@@ -222,8 +218,8 @@ export async function POST(request: Request) {
                 }
 
                 const quantityChange = normalizedType === "sale" ? -stockQty : stockQty
-                if (normalizedType === "sale" && product.trackStock && barQty < stockQty) {
-                    throw new Error(`Stock insuffisant au bar pour ${product.name}. Disponible: ${barQty}, requis: ${stockQty}`)
+                if (normalizedType === "sale" && barQty < stockQty) {
+                    throw new Error(`Stock insuffisant pour ${product.name}. Disponible: ${barQty}, requis: ${stockQty}`)
                 }
 
                 await tx.insert(transactionItems).values({

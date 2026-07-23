@@ -11,6 +11,7 @@ import { useStock } from "@/hooks/use-stock"
 import { useLocations } from "@/hooks/use-locations"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/hooks/use-settings"
+import { useProductTypes } from "@/hooks/use-product-types"
 import { toast } from "sonner"
 import { Label } from "@/components/ui/label"
 import { formatStockFromSellingUnits } from "@/lib/stock-utils"
@@ -26,6 +27,7 @@ export default function InventoryStatusPage() {
   const [productType, setProductType] = useState<string>("all")
   const { stockItems, adjustments, loading, createAdjustment } = useStock()
   const { locations } = useLocations()
+  const { activeTypes } = useProductTypes()
   const [page, setPage] = useState(1)
   const [pageSize, setPageSize] = useState(20)
   const [inventoryForm, setInventoryForm] = useState({ productId: "", physicalQuantity: "" })
@@ -34,16 +36,8 @@ export default function InventoryStatusPage() {
 
   const filteredByLocation = useMemo(() => {
     let items = stockItems
-    if (productType === "drink") {
-      items = items.filter(item => item.product.productType === "drink")
-    } else if (productType === "ingredient") {
-      items = items.filter(item => item.product.productType === "ingredient")
-    } else if (productType === "food") {
-      items = items.filter(item => item.product.productType === "food")
-    } else if (productType === "others") {
-      items = items.filter(item => item.product.productType === "others")
-    } else {
-      items = items.filter(item => item.product.productType !== "food" && item.product.productType !== "others" && item.product.trackStock !== false)
+    if (productType !== "all") {
+      items = items.filter(item => item.product.productTypeId === productType)
     }
     if (selectedLocationId) {
       items = items.filter(item => item.locationId === selectedLocationId)
@@ -64,9 +58,13 @@ export default function InventoryStatusPage() {
     : "All Locations"
 
   const bakeryProducts = useMemo(() => {
-    return stockItems.filter(item =>
-      String(item.product.sector || "").toLowerCase() === "boulangerie"
-    )
+    // Deduplicate by productId to avoid duplicate keys in the select dropdown
+    const seen = new Set<string>()
+    return stockItems.filter(item => {
+      if (seen.has(item.productId)) return false
+      seen.add(item.productId)
+      return true
+    })
   }, [stockItems])
 
   const selectedStockItem = useMemo(() => {
@@ -243,7 +241,7 @@ export default function InventoryStatusPage() {
             size="sm"
             onClick={() => setSelectedLocationId(loc.id)}
           >
-            {loc.type === "principal" ? (
+            {loc.type === "primary" ? (
               <Warehouse className="h-4 w-4 mr-1" />
             ) : (
               <Store className="h-4 w-4 mr-1" />
@@ -262,38 +260,17 @@ export default function InventoryStatusPage() {
         >
           Tout
         </Button>
-        <Button
-          variant={productType === "drink" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setProductType("drink")}
-        >
-          <Package className="h-4 w-4 mr-1" />
-          Boissons
-        </Button>
-        <Button
-          variant={productType === "ingredient" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setProductType("ingredient")}
-        >
-          <AlertTriangle className="h-4 w-4 mr-1" />
-          Ingrédients
-        </Button>
-        <Button
-          variant={productType === "food" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setProductType("food")}
-        >
-          <Utensils className="h-4 w-4 mr-1" />
-          Recettes
-        </Button>
-        <Button
-          variant={productType === "others" ? "default" : "outline"}
-          size="sm"
-          onClick={() => setProductType("others")}
-        >
-          <Package className="h-4 w-4 mr-1" />
-          Autres
-        </Button>
+        {activeTypes.map((t) => (
+          <Button
+            key={t.id}
+            variant={productType === t.id ? "default" : "outline"}
+            size="sm"
+            onClick={() => setProductType(t.id)}
+          >
+            <Package className="h-4 w-4 mr-1" />
+            {t.name}
+          </Button>
+        ))}
       </div>
 
       <div className="grid gap-4 md:grid-cols-4">
@@ -508,7 +485,7 @@ export default function InventoryStatusPage() {
                       <TableCell className="font-mono text-xs">{item.product.sku}</TableCell>
                       <TableCell>
                         <div className="flex items-center gap-1 text-xs text-muted-foreground">
-                          {item.location?.type === "principal" ? (
+                          {item.location?.type === "primary" ? (
                             <Warehouse className="h-3 w-3" />
                           ) : (
                             <Store className="h-3 w-3" />

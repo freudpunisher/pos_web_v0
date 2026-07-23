@@ -41,9 +41,7 @@ export function PurchaseFormDialog({ open, onOpenChange, onSubmit }: PurchaseFor
   const { suppliers, loading: suppliersLoading } = useSuppliers()
   const { products, loading: productsLoading } = useProducts()
 
-  const purchasableProducts = products.filter(
-    (p) => p.productType === "ingredient" || (p.productType === "drink" && p.trackStock)
-  )
+  const purchasableProducts = products
 
   useEffect(() => {
     if (!open) {

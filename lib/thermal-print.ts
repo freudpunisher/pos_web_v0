@@ -6,8 +6,7 @@ export interface ReceiptData {
   date: Date
   client?: string
   cashier?: string
-  waiter?: string
-  table?: string
+  location?: string
   items: { name: string; quantity: number; price: number; total: number }[]
   total: number
   paymentMethod?: string
@@ -106,8 +105,7 @@ export function printThermal(data: ReceiptData): void {
   <div class="info-line"><span class="info-label">Date</span> ${data.date.toLocaleDateString()} ${data.date.toLocaleTimeString([], { hour: "2-digit", minute: "2-digit", hour12: false })}</div>
   ${data.client ? `<div class="info-line"><span class="info-label">Client</span> ${data.client}</div>` : ""}
   ${data.cashier ? `<div class="info-line"><span class="info-label">Cashier</span> ${data.cashier}</div>` : ""}
-  ${data.waiter ? `<div class="info-line"><span class="info-label">Waiter</span> ${data.waiter}</div>` : ""}
-  ${data.table ? `<div class="info-line"><span class="info-label">Table</span> ${data.table}</div>` : ""}
+  ${data.location ? `<div class="info-line"><span class="info-label">Location</span> ${data.location}</div>` : ""}
 
   <div class="divider"></div>
 

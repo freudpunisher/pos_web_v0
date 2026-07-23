@@ -55,12 +55,12 @@ export default function DashboardPage() {
 
   const orderStatusCounts = {
     pending: orders.filter((o: any) => o.orderStatus === "pending").length,
-    preparing: orders.filter((o: any) => o.orderStatus === "preparing").length,
-    ready: orders.filter((o: any) => o.orderStatus === "ready").length,
-    served: orders.filter((o: any) => o.orderStatus === "served").length,
+    confirmed: orders.filter((o: any) => o.orderStatus === "confirmed").length,
+    completed: orders.filter((o: any) => o.orderStatus === "completed").length,
+    cancelled: orders.filter((o: any) => o.orderStatus === "cancelled").length,
   }
 
-  const activeOrders = orderStatusCounts.pending + orderStatusCounts.preparing + orderStatusCounts.ready + orderStatusCounts.served
+  const activeOrders = orderStatusCounts.pending + orderStatusCounts.confirmed
 
   const currencySymbol = settings?.currencySymbol || "Fbu"
 
@@ -155,9 +155,7 @@ export default function DashboardPage() {
                 </p>
                 <div className="flex items-center gap-2 text-xs text-muted-foreground">
                   <span className="flex items-center gap-0.5"><Clock className="h-3 w-3 text-amber-500" />{orderStatusCounts.pending}</span>
-                  <span className="flex items-center gap-0.5"><ChefHat className="h-3 w-3 text-blue-500" />{orderStatusCounts.preparing}</span>
-                  <span className="flex items-center gap-0.5"><Bell className="h-3 w-3 text-green-500" />{orderStatusCounts.ready}</span>
-                  <span className="flex items-center gap-0.5"><Utensils className="h-3 w-3 text-purple-500" />{orderStatusCounts.served}</span>
+                  <span className="flex items-center gap-0.5"><Bell className="h-3 w-3 text-blue-500" />{orderStatusCounts.confirmed}</span>
                 </div>
               </div>
               <div className="flex h-10 w-10 items-center justify-center rounded-lg bg-amber-500/10">

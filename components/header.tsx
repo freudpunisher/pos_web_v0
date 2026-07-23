@@ -83,8 +83,6 @@ export function Header() {
     admin: "Admin système",
     manager: "Gérant",
     cashier: "Caissier",
-    waiter: "Serveur",
-    chef: "Chef",
     stock_manager: "Gestionnaire de stock",
   }
 
@@ -93,7 +91,7 @@ export function Header() {
       case "admin": return "bg-red-100 text-red-800 dark:bg-red-900/60 dark:text-red-300"
       case "manager": return "bg-blue-100 text-blue-800 dark:bg-blue-900/60 dark:text-blue-300"
       case "cashier": return "bg-emerald-100 text-emerald-800 dark:bg-emerald-900/60 dark:text-emerald-300"
-      case "waiter": return "bg-purple-100 text-purple-800 dark:bg-purple-900/60 dark:text-purple-300"
+      case "stock_manager": return "bg-amber-100 text-amber-800 dark:bg-amber-900/60 dark:text-amber-300"
       default: return "bg-gray-100 text-gray-800 dark:bg-gray-800 dark:text-gray-300"
     }
   }

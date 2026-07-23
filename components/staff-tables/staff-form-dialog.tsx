@@ -16,14 +16,14 @@ interface StaffFormDialogProps {
 }
 
 export function StaffFormDialog({ staff, open, onOpenChange, onSubmit }: StaffFormDialogProps) {
-  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "waiter", password: "", avatar: "" })
+  const [form, setForm] = useState({ name: "", email: "", phone: "", role: "cashier", password: "", avatar: "" })
   const [saving, setSaving] = useState(false)
 
   useEffect(() => {
     if (staff) {
-      setForm({ name: staff.name || "", email: staff.email || "", phone: staff.phone || "", role: staff.role || "waiter", password: "", avatar: staff.avatar || "" })
+      setForm({ name: staff.name || "", email: staff.email || "", phone: staff.phone || "", role: staff.role || "cashier", password: "", avatar: staff.avatar || "" })
     } else {
-      setForm({ name: "", email: "", phone: "", role: "waiter", password: "", avatar: "" })
+      setForm({ name: "", email: "", phone: "", role: "cashier", password: "", avatar: "" })
     }
   }, [staff, open])
 
@@ -66,9 +66,9 @@ export function StaffFormDialog({ staff, open, onOpenChange, onSubmit }: StaffFo
                 <SelectValue />
               </SelectTrigger>
               <SelectContent>
-                <SelectItem value="waiter">Waiter</SelectItem>
-                <SelectItem value="cashier">Cashier</SelectItem>
-                <SelectItem value="manager">Manager</SelectItem>
+                <SelectItem value="cashier">Caissier</SelectItem>
+                <SelectItem value="stock_manager">Gestionnaire de stock</SelectItem>
+                <SelectItem value="manager">Gérant</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>
             </Select>

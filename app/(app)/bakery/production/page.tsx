@@ -250,7 +250,7 @@ export default function ProductionPage() {
 
                         {selectedRecipe && (
                             <div className="space-y-2">
-                                <Label>Quantité à produire ({selectedRecipe.product?.unit})</Label>
+                                <Label>Quantité à produire</Label>
                                 <Input
                                     type="number"
                                     value={quantity}
@@ -258,7 +258,7 @@ export default function ProductionPage() {
                                     min="1"
                                 />
                                 <p className="text-xs text-muted-foreground">
-                                    Recette de base pour {selectedRecipe.yieldQuantity} {selectedRecipe.product?.unit}
+                                    Recette de base pour {selectedRecipe.yieldQuantity} unités
                                 </p>
                             </div>
                         )}
@@ -292,7 +292,7 @@ export default function ProductionPage() {
                                 </div>
                                 <div className="text-right">
                                     <p className="text-sm font-medium">Quantité Totale</p>
-                                    <p className="text-2xl font-bold">{quantity} {selectedRecipe.product?.unit}</p>
+                                    <p className="text-2xl font-bold">{quantity}</p>
                                 </div>
                             </div>
 
@@ -345,10 +345,10 @@ export default function ProductionPage() {
                                 </SelectTrigger>
                                 <SelectContent>
                                     {products
-                                        .filter((p) => p.type === "finished_good" && p.sector === "Boulangerie")
+                                        .filter((p) => p.type === "finished_good")
                                         .map((p) => (
                                         <SelectItem key={p.id} value={p.id}>
-                                            {p.name} ({p.unit || "unit"})
+                                            {p.name}
                                         </SelectItem>
                                     ))}
                                 </SelectContent>
@@ -384,12 +384,12 @@ export default function ProductionPage() {
                                         <SelectTrigger>
                                             <SelectValue placeholder="Choisir un ingrédient" />
                                         </SelectTrigger>
-                                <SelectContent>
+                                        <SelectContent>
                                             {products
                                                 .filter((p) => p.type === "raw_material")
                                                 .map((p) => (
                                                     <SelectItem key={p.id} value={p.id}>
-                                                        {p.name} ({p.unit || "unit"})
+                                                        {p.name}
                                                     </SelectItem>
                                                 ))}
                                         </SelectContent>
@@ -459,7 +459,7 @@ export default function ProductionPage() {
                                     <p className="font-medium">{recipe.name}</p>
                                     <p className="text-xs text-muted-foreground">
                                         Produit: {recipe.product?.name} • GRS: {recipe.grs || "—"} • Rendement:{" "}
-                                        {recipe.yieldQuantity} {recipe.product?.unit || ""}
+                                        {recipe.yieldQuantity} unités
                                     </p>
                                 </div>
                                 <div className="flex gap-2">
@@ -504,8 +504,7 @@ export default function ProductionPage() {
                                     <div>
                                         <p className="font-medium">{run.recipe?.product?.name || "Produit fini"}</p>
                                         <p className="text-xs text-muted-foreground">
-                                            Batch: {run.batchNumber || run.id.slice(0, 8)} • Prévu: {run.plannedQuantity}{" "}
-                                            {run.recipe?.product?.unit || ""}
+                                            Batch: {run.batchNumber || run.id.slice(0, 8)} • Prévu: {run.plannedQuantity}
                                         </p>
                                     </div>
                                     <div className="flex flex-col gap-2 sm:flex-row sm:items-center">
