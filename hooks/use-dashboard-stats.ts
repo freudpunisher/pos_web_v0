@@ -7,13 +7,16 @@ export function useDashboardStats(period: string = "today", sector?: string) {
     const [loading, setLoading] = useState(true)
     const [error, setError] = useState<string | null>(null)
 
-    const fetchStats = useCallback(async (p: string = period, s: string | undefined = sector) => {
+    const fetchStats = useCallback(async (p: string = period, s: string | undefined = sector, loc?: string) => {
         setLoading(true)
         try {
             const url = new URL("/api/dashboard/stats", typeof window === "undefined" ? "http://localhost" : window.location.origin)
             url.searchParams.set("period", p)
             if (s) {
                 url.searchParams.set("sector", s)
+            }
+            if (loc && loc !== "all") {
+                url.searchParams.set("locationId", loc)
             }
             const response = await fetch(url.toString())
             if (!response.ok) throw new Error("Failed to fetch dashboard stats")

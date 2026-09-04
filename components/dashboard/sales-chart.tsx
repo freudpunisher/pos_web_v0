@@ -14,21 +14,24 @@ interface SalesChartProps {
   loading?: boolean
   timePeriod?: "today" | "week" | "month"
   sector?: string
+  locationId?: string
 }
 
 const CHART_TITLES: Record<string, string> = {
-  today: "Today's Sales",
-  week: "Sales Overview (Last 7 Days)",
-  month: "Sales Overview (This Month)",
+  today: "Ventes du jour",
+  week: "Aperçu des ventes (7 derniers jours)",
+  month: "Aperçu des ventes (ce mois)",
 }
 
-export function SalesChart({ loading = false, timePeriod = "week", sector }: SalesChartProps) {
+const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " FC"
+
+export function SalesChart({ loading = false, timePeriod = "week", sector, locationId }: SalesChartProps) {
   const [data, setData] = useState<SalesData[]>([])
   const [chartLoading, setChartLoading] = useState(true)
 
   useEffect(() => {
     fetchSalesData()
-  }, [timePeriod, sector])
+  }, [timePeriod, sector, locationId])
 
   const fetchSalesData = async () => {
     setChartLoading(true)
@@ -36,6 +39,9 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
       const params = new URLSearchParams({ period: timePeriod })
       if (sector) {
         params.set("sector", sector)
+      }
+      if (locationId && locationId !== "all") {
+        params.set("locationId", locationId)
       }
       const response = await fetch(`/api/dashboard/sales-chart?${params.toString()}`)
       if (response.ok) {
@@ -51,14 +57,14 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
 
   if (chartLoading || loading) {
     return (
-      <Card className="border-border bg-card">
+      <Card className="border-border bg-card h-full">
         <CardHeader>
-          <CardTitle>{CHART_TITLES[timePeriod] || "Sales Overview"}</CardTitle>
+          <CardTitle>{CHART_TITLES[timePeriod] || "Aperçu des ventes"}</CardTitle>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Loading chart...</p>
+            <p className="text-sm text-muted-foreground">Chargement du graphique...</p>
           </div>
         </CardContent>
       </Card>
@@ -67,12 +73,12 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
 
   if (!data || data.length === 0) {
     return (
-      <Card className="border-border bg-card">
+      <Card className="border-border bg-card h-full">
         <CardHeader>
-          <CardTitle>{CHART_TITLES[timePeriod] || "Sales Overview"}</CardTitle>
+          <CardTitle>{CHART_TITLES[timePeriod] || "Aperçu des ventes"}</CardTitle>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-muted-foreground">No sales data available yet</p>
+          <p className="text-muted-foreground">Aucune donnée de vente pour le moment</p>
         </CardContent>
       </Card>
     )
@@ -82,16 +88,16 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
   const barHeight = maxSales > 0 ? 250 : 0
 
   return (
-    <Card className="border-border bg-card">
+    <Card className="border-border bg-card h-full">
       <CardHeader>
-        <CardTitle>{CHART_TITLES[timePeriod] || "Sales Overview"}</CardTitle>
+        <CardTitle>{CHART_TITLES[timePeriod] || "Aperçu des ventes"}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[300px] flex items-end justify-around gap-2 px-4 py-8">
           {data.map((item, index) => {
             const heightPercentage = maxSales > 0 ? (item.sales / maxSales) * barHeight : 0
             const dateObj = new Date(item.date)
-            const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" })
+            const dayName = dateObj.toLocaleDateString("fr-FR", { weekday: "short" })
             const dayNumber = dateObj.getDate()
 
             return (
@@ -102,7 +108,7 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
                     style={{ height: `${heightPercentage}px` }}
                   >
                     <div className="absolute -top-8 left-1/2 -translate-x-1/2 bg-popover text-popover-foreground px-2 py-1 rounded text-xs whitespace-nowrap opacity-0 group-hover:opacity-100 transition-opacity pointer-events-none">
-                      ${item.sales.toFixed(0)}
+                      {fmt(item.sales)}
                     </div>
                   </div>
                 </div>

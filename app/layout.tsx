@@ -11,7 +11,7 @@ export const metadata: Metadata = {
   description: "Application web professionnelle de point de vente pour la gestion commerciale",
   generator: "v0.app",
   icons: {
-    icon: "/ahava.png",
+    icon: "/favicon.svg",
   },
 }
 

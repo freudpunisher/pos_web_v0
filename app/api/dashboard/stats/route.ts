@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import db from "@/lib/db"
 import { transactions, products, clients, transactionItems, users, purchaseOrders, inventory, stockAdjustments, categories, measurementUnits, stockMovements } from "@/lib/db/schema"
 import { desc, eq, ne, sql, and, gte, lte } from "drizzle-orm"
+import { requireManagerOrAdmin } from "@/lib/auth-guard"
 
 function fmt(date: Date) {
   const p = (n: number) => String(n).padStart(2, "0")
@@ -33,11 +34,39 @@ function getPeriodDateRange(period: string = "today") {
 }
 
 export async function GET(request: NextRequest) {
+    const authError = await requireManagerOrAdmin()
+    if (authError) return authError
+
     try {
         const searchParams = request.nextUrl.searchParams
         const period = searchParams.get("period") || "today"
+        const locationId = searchParams.get("locationId")
 
         const { startDate, endDate } = getPeriodDateRange(period)
+
+        const salesFilter = locationId
+            ? and(
+                gte(transactions.date, sql`${startDate}::timestamp`),
+                lte(transactions.date, sql`${endDate}::timestamp`),
+                ne(transactions.status, "cancelled"),
+                eq(transactions.locationId, locationId)
+            )
+            : and(
+                gte(transactions.date, sql`${startDate}::timestamp`),
+                lte(transactions.date, sql`${endDate}::timestamp`),
+                ne(transactions.status, "cancelled")
+            )
+
+        const revenueFilter = locationId
+            ? and(
+                gte(transactions.date, sql`${startDate}::timestamp`),
+                ne(transactions.status, "cancelled"),
+                eq(transactions.locationId, locationId)
+            )
+            : and(
+                gte(transactions.date, sql`${startDate}::timestamp`),
+                ne(transactions.status, "cancelled")
+            )
 
         // 1. Sales for period
         const salesPromise = db
@@ -47,13 +76,7 @@ export async function GET(request: NextRequest) {
                   creditCount: sql<number>`count(case when ${transactions.paymentMethod} = 'credit' then 1 end)`
               })
               .from(transactions)
-              .where(
-                  and(
-                      gte(transactions.date, sql`${startDate}::timestamp`),
-                      lte(transactions.date, sql`${endDate}::timestamp`),
-                      ne(transactions.status, "cancelled")
-                  )
-              )
+              .where(salesFilter)
 
         // 2. Revenue (for month, use monthly; for others just use sales)
         const revenuePromise = db
@@ -61,12 +84,7 @@ export async function GET(request: NextRequest) {
                   total: sql<number>`sum(${transactions.total})`
               })
               .from(transactions)
-              .where(
-                  and(
-                      gte(transactions.date, sql`${startDate}::timestamp`),
-                      ne(transactions.status, "cancelled")
-                  )
-              )
+              .where(revenueFilter)
 
         // 3. Low Stock Items (exclude food products — made-to-order / recipe-based)
         const lowStockPromise = db
@@ -86,17 +104,11 @@ export async function GET(request: NextRequest) {
             })
             .from(transactionItems)
             .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
-            .where(
-                and(
-                    gte(transactions.date, sql`${startDate}::timestamp`),
-                    lte(transactions.date, sql`${endDate}::timestamp`),
-                    ne(transactions.status, "cancelled")
-                )
-            )
+            .where(salesFilter)
 
         // 6. Recent Transactions
         const recentTransactionsPromise = db.query.transactions.findMany({
-            where: ne(transactions.status, "cancelled"),
+            where: locationId ? and(ne(transactions.status, "cancelled"), eq(transactions.locationId, locationId)) : ne(transactions.status, "cancelled"),
             orderBy: [desc(transactions.date)],
             limit: 5,
             with: {
