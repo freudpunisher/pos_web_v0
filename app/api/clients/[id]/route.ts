@@ -10,7 +10,7 @@ export async function PUT(
     try {
         const { id } = await params
         const body = await request.json()
-        const { name, email, phone, address, creditLimit, isActive } = body
+        const { name, email, phone, address, locationId, creditLimit, isActive } = body
 
         const [updatedClient] = await db
             .update(clients)
@@ -19,6 +19,7 @@ export async function PUT(
                 email,
                 phone,
                 address,
+                locationId: locationId || null,
                 creditLimit: creditLimit?.toString(),
                 isActive,
             })

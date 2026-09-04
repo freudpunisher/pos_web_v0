@@ -192,6 +192,7 @@ export const clients = pgTable("clients", {
     email: text("email").notNull(),
     phone: text("phone").notNull(),
     address: text("address").notNull(),
+    locationId: uuid("location_id").references(() => locations.id),
     creditBalance: numeric("credit_balance", { precision: 12, scale: 2 }).notNull().default("0"),
     creditLimit: numeric("credit_limit", { precision: 12, scale: 2 }).notNull().default("0"),
     isActive: boolean("is_active").notNull().default(true),
@@ -515,6 +516,7 @@ export const locationsRelations = relations(locations, ({ many }) => ({
     sales: many(transactions, { relationName: "saleLocation" }),
     deliveries: many(transactions, { relationName: "deliveryLocation" }),
     users: many(userLocations),
+    clients: many(clients),
 }))
 
 export const stockTransfersRelations = relations(stockTransfers, ({ one, many }) => ({
@@ -592,7 +594,11 @@ export const inventoryItemsRelations = relations(inventoryItems, ({ one }) => ({
     }),
 }))
 
-export const clientsRelations = relations(clients, ({ many }) => ({
+export const clientsRelations = relations(clients, ({ one, many }) => ({
+    location: one(locations, {
+        fields: [clients.locationId],
+        references: [locations.id],
+    }),
     transactions: many(transactions),
     creditRecords: many(creditRecords),
 }))

@@ -229,7 +229,7 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                     <div className="col-span-3 space-y-3">
                                         {sellingUnits.length === 0 && (
                                             <p className="text-xs text-muted-foreground">
-                                                Add different packaging options with their own prices (e.g. Unité, Palette).
+                                                Ajoutez différentes options d'emballage avec leurs propres prix (ex: Unité, Palette).
                                             </p>
                                         )}
                                         {sellingUnits.map((su, index) => (
@@ -271,7 +271,7 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                                                                 min="0"
                                                                 value={su.price}
                                                                 onChange={(e) => updateSellingUnit(index, "price", e.target.value)}
-                                                                placeholder="Price"
+                                                                placeholder="Prix"
                                                                 className="h-8 text-sm"
                                                             />
                                                         </div>

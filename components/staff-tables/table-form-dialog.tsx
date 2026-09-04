@@ -41,27 +41,27 @@ export function TableFormDialog({ table, open, onOpenChange, onSubmit }: TableFo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{table ? "Edit Table" : "Add Table"}</DialogTitle>
+          <DialogTitle>{table ? "Modifier la table" : "Ajouter une table"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Table Number</Label>
-            <Input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="e.g. 1" />
+            <Label>Numéro de table</Label>
+            <Input type="number" value={form.number} onChange={(e) => setForm({ ...form, number: e.target.value })} placeholder="Ex: 1" />
           </div>
           <div className="space-y-2">
-            <Label>Capacity</Label>
+            <Label>Capacité</Label>
             <Input type="number" value={form.capacity} onChange={(e) => setForm({ ...form, capacity: e.target.value })} />
           </div>
           <div className="space-y-2">
-            <Label>Section (optional)</Label>
-            <Input value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })} placeholder="e.g. Terrace, Indoor, VIP" />
+            <Label>Section (optionnel)</Label>
+            <Input value={form.section} onChange={(e) => setForm({ ...form, section: e.target.value })} placeholder="Ex: Terrasse, Intérieur, VIP" />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
           <Button onClick={handleSubmit} disabled={!form.number || saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {table ? "Save" : "Add"}
+            {table ? "Enregistrer" : "Ajouter"}
           </Button>
         </DialogFooter>
       </DialogContent>

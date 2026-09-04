@@ -44,23 +44,23 @@ export function StaffFormDialog({ staff, open, onOpenChange, onSubmit }: StaffFo
     <Dialog open={open} onOpenChange={onOpenChange}>
       <DialogContent>
         <DialogHeader>
-          <DialogTitle>{staff ? "Edit Staff" : "Add Staff"}</DialogTitle>
+          <DialogTitle>{staff ? "Modifier le personnel" : "Ajouter du personnel"}</DialogTitle>
         </DialogHeader>
         <div className="space-y-4">
           <div className="space-y-2">
-            <Label>Name</Label>
-            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Full name" />
+            <Label>Nom</Label>
+            <Input value={form.name} onChange={(e) => setForm({ ...form, name: e.target.value })} placeholder="Nom complet" />
           </div>
           <div className="space-y-2">
-            <Label>Email</Label>
+            <Label>Courriel</Label>
             <Input type="email" value={form.email} onChange={(e) => setForm({ ...form, email: e.target.value })} placeholder="email@example.com" />
           </div>
           <div className="space-y-2">
-            <Label>Phone</Label>
+            <Label>Téléphone</Label>
             <Input type="tel" value={form.phone} onChange={(e) => setForm({ ...form, phone: e.target.value })} placeholder="+257 XX XX XX XX" />
           </div>
           <div className="space-y-2">
-            <Label>Role</Label>
+            <Label>Rôle</Label>
             <Select value={form.role} onValueChange={(v) => setForm({ ...form, role: v })}>
               <SelectTrigger>
                 <SelectValue />
@@ -74,15 +74,15 @@ export function StaffFormDialog({ staff, open, onOpenChange, onSubmit }: StaffFo
             </Select>
           </div>
           <div className="space-y-2">
-            <Label>{staff ? "New Password (leave blank to keep)" : "Password"}</Label>
-            <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={staff ? "Leave blank to keep" : "Min 6 characters"} />
+            <Label>{staff ? "Nouveau mot de passe (laisser vide pour conserver)" : "Mot de passe"}</Label>
+            <Input type="password" value={form.password} onChange={(e) => setForm({ ...form, password: e.target.value })} placeholder={staff ? "Laisser vide pour conserver" : "Minimum 6 caractères"} />
           </div>
         </div>
         <DialogFooter>
-          <Button variant="outline" onClick={() => onOpenChange(false)}>Cancel</Button>
+          <Button variant="outline" onClick={() => onOpenChange(false)}>Annuler</Button>
           <Button onClick={handleSubmit} disabled={!form.name || !form.email || (!staff && !form.password) || saving}>
             {saving && <Loader2 className="h-4 w-4 mr-2 animate-spin" />}
-            {staff ? "Save" : "Add"}
+            {staff ? "Enregistrer" : "Ajouter"}
           </Button>
         </DialogFooter>
       </DialogContent>

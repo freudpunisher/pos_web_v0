@@ -17,9 +17,9 @@ interface SalesChartProps {
 }
 
 const CHART_TITLES: Record<string, string> = {
-  today: "Today's Sales",
-  week: "Sales Overview (Last 7 Days)",
-  month: "Sales Overview (This Month)",
+  today: "Ventes du jour",
+  week: "Aperçu des ventes (7 derniers jours)",
+  month: "Aperçu des ventes (ce mois-ci)",
 }
 
 export function SalesChart({ loading = false, timePeriod = "week", sector }: SalesChartProps) {
@@ -53,12 +53,12 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
     return (
       <Card className="border-border bg-card">
         <CardHeader>
-          <CardTitle>{CHART_TITLES[timePeriod] || "Sales Overview"}</CardTitle>
+          <CardTitle>{CHART_TITLES[timePeriod] || "Aperçu des ventes"}</CardTitle>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
           <div className="text-center">
             <Loader2 className="h-8 w-8 animate-spin text-primary mx-auto mb-2" />
-            <p className="text-sm text-muted-foreground">Loading chart...</p>
+            <p className="text-sm text-muted-foreground">Chargement du graphique...</p>
           </div>
         </CardContent>
       </Card>
@@ -69,10 +69,10 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
     return (
       <Card className="border-border bg-card">
         <CardHeader>
-          <CardTitle>{CHART_TITLES[timePeriod] || "Sales Overview"}</CardTitle>
+          <CardTitle>{CHART_TITLES[timePeriod] || "Aperçu des ventes"}</CardTitle>
         </CardHeader>
         <CardContent className="h-[300px] flex items-center justify-center">
-          <p className="text-muted-foreground">No sales data available yet</p>
+          <p className="text-muted-foreground">Aucune donnée de vente disponible pour le moment</p>
         </CardContent>
       </Card>
     )
@@ -84,14 +84,14 @@ export function SalesChart({ loading = false, timePeriod = "week", sector }: Sal
   return (
     <Card className="border-border bg-card">
       <CardHeader>
-        <CardTitle>{CHART_TITLES[timePeriod] || "Sales Overview"}</CardTitle>
+        <CardTitle>{CHART_TITLES[timePeriod] || "Aperçu des ventes"}</CardTitle>
       </CardHeader>
       <CardContent>
         <div className="h-[300px] flex items-end justify-around gap-2 px-4 py-8">
           {data.map((item, index) => {
             const heightPercentage = maxSales > 0 ? (item.sales / maxSales) * barHeight : 0
             const dateObj = new Date(item.date)
-            const dayName = dateObj.toLocaleDateString("en-US", { weekday: "short" })
+            const dayName = dateObj.toLocaleDateString("fr-FR", { weekday: "short" })
             const dayNumber = dateObj.getDate()
 
             return (

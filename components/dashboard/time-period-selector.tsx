@@ -18,21 +18,21 @@ export function TimePeriodSelector({ selected, onSelect }: TimePeriodSelectorPro
         size="sm"
         onClick={() => onSelect("today")}
       >
-        Today
+        Aujourd'hui
       </Button>
       <Button
         variant={selected === "week" ? "default" : "outline"}
         size="sm"
         onClick={() => onSelect("week")}
       >
-        This Week
+        Cette semaine
       </Button>
       <Button
         variant={selected === "month" ? "default" : "outline"}
         size="sm"
         onClick={() => onSelect("month")}
       >
-        This Month
+        Ce mois-ci
       </Button>
     </div>
   )
