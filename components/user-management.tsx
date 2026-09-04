@@ -22,7 +22,7 @@ import { useUsers } from "@/hooks/use-users"
 
 export function UserManagement() {
   const { users, loading: usersLoading, createUser, updateUser } = useUsers()
-  const [newUser, setNewUser] = useState({ name: "", email: "", phone: "", password: "", role: "cashier_food" })
+  const [newUser, setNewUser] = useState({ name: "", email: "", phone: "", password: "", role: "cashier" })
   const [showAddUser, setShowAddUser] = useState(false)
   const [showEditUser, setShowEditUser] = useState(false)
   const [editingUser, setEditingUser] = useState<{ id: string; name: string; email: string; phone?: string; role: string; password?: string } | null>(null)
@@ -30,24 +30,15 @@ export function UserManagement() {
   const roleLabel = (role: string) => {
     const labels: Record<string, string> = {
       admin: "Admin système",
-      cashier_food: "Caissier - Alimentation",
-      supervisor_food: "Superviseur - Alimentation",
-      cashier_bakery: "Caissier - Boulangerie",
-      supervisor_bakery: "Superviseur - Boulangerie",
-      production_bakery: "Responsable production",
+      cashier: "Caissier",
       manager: "Gérant",
-      stock_manager: "Gestionnaire de stock",
-      investor: "Investisseur",
-      accountant: "Comptable",
     }
     return labels[role] || role || "Inconnu"
   }
 
   const roleBadgeClass = (role: string) => {
     if (role === "admin") return "bg-destructive/20 text-destructive"
-    if (role === "manager" || role === "stock_manager" || role === "investor" || role === "accountant") {
-      return "bg-primary/20 text-primary"
-    }
+    if (role === "manager") return "bg-primary/20 text-primary"
     return "bg-secondary/50 text-foreground"
   }
 
@@ -146,11 +137,7 @@ export function UserManagement() {
                   <SelectContent>
                     <SelectItem value="admin">Admin système</SelectItem>
                     <SelectItem value="cashier">Caissier</SelectItem>
-
                     <SelectItem value="manager">Gérant</SelectItem>
-                    <SelectItem value="stock_manager">Gestionnaire de stock</SelectItem>
-                    {/* <SelectItem value="investor">Investisseur</SelectItem> */}
-                    {/* <SelectItem value="accountant">Comptable</SelectItem> */}
                   </SelectContent>
                 </Select>
               </div>
@@ -255,15 +242,8 @@ export function UserManagement() {
                   </SelectTrigger>
                   <SelectContent>
                     <SelectItem value="admin">Admin système</SelectItem>
-                    <SelectItem value="cashier_food">Caissier - Alimentation</SelectItem>
-                    <SelectItem value="supervisor_food">Superviseur - Alimentation</SelectItem>
-                    <SelectItem value="cashier_bakery">Caissier - Boulangerie</SelectItem>
-                    <SelectItem value="supervisor_bakery">Superviseur - Boulangerie</SelectItem>
-                    <SelectItem value="production_bakery">Responsable production</SelectItem>
+                    <SelectItem value="cashier">Caissier</SelectItem>
                     <SelectItem value="manager">Gérant</SelectItem>
-                    <SelectItem value="stock_manager">Gestionnaire de stock</SelectItem>
-                    <SelectItem value="investor">Investisseur</SelectItem>
-                    <SelectItem value="accountant">Comptable</SelectItem>
                   </SelectContent>
                 </Select>
               </div>

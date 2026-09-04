@@ -48,7 +48,7 @@ export default function ExpensesPage() {
         reference: ""
     })
 
-    const currencySymbol = settings?.currencySymbol || "Fbu"
+    const currencySymbol = settings?.currencySymbol || "FC"
 
     useEffect(() => {
         fetchExpenses()

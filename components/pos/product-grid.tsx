@@ -303,29 +303,41 @@ export function ProductGrid() {
           <DialogHeader>
             <DialogTitle className="flex items-center gap-2 text-lg text-warning">
               <AlertTriangle className="h-5 w-5" />
-              Rupture de stock au bar
+              Rupture de stock
             </DialogTitle>
             <DialogDescription className="text-sm">
               <strong>{stockAlert?.product.name}</strong> est actuellement en rupture de stock
-              dans l'emplacement secondaire, mais il y a{" "}
+              dans votre emplacement, mais il y a{" "}
               <span className="font-bold text-accent">{stockAlert?.principal ?? 0}</span> unités
               disponibles dans l'entrepôt principal.
             </DialogDescription>
           </DialogHeader>
-          <div className="bg-secondary/10 rounded-lg p-4 text-sm space-y-1">
-            <p className="font-medium">Recommandé :</p>
-            <p className="text-muted-foreground">
-              Allez dans <strong>Transferts de stock</strong> pour déplacer le stock de l'entrepôt
-              vers le bar avant de vendre.
-            </p>
-          </div>
+          {user?.role === "cashier" ? (
+            <div className="bg-secondary/10 rounded-lg p-4 text-sm space-y-1">
+              <p className="font-medium">Informez votre manager :</p>
+              <p className="text-muted-foreground">
+                Veuillez signaler à votre manager que ce produit nécessite un
+                transfert de stock depuis l&apos;entrepôt principal.
+              </p>
+            </div>
+          ) : (
+            <div className="bg-secondary/10 rounded-lg p-4 text-sm space-y-1">
+              <p className="font-medium">Recommandé :</p>
+              <p className="text-muted-foreground">
+                Allez dans <strong>Transferts de stock</strong> pour déplacer le stock de l&apos;entrepôt
+                vers l&apos;emplacement avant de vendre.
+              </p>
+            </div>
+          )}
           <DialogFooter className="gap-2">
             <Button variant="outline" onClick={() => setStockAlert(null)}>
-              Annuler
+              Fermer
             </Button>
-            <Button asChild>
-              <Link href="/stock/transfers">Aller aux transferts</Link>
-            </Button>
+            {user?.role !== "cashier" && (
+              <Button asChild>
+                <Link href="/stock/transfers">Aller aux transferts</Link>
+              </Button>
+            )}
           </DialogFooter>
         </DialogContent>
       </Dialog>

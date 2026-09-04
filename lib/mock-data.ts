@@ -501,8 +501,8 @@ export const mockStoreSettings: StoreSettings = {
   phone: "+1 555-0000",
   email: "info@smartpos.com",
   taxRate: 8.5,
-  currency: "Fbu",
-  currencySymbol: "Fbu",
+  currency: "FC",
+  currencySymbol: "FC",
   rcNumber: "",
   nifNumber: "",
 }

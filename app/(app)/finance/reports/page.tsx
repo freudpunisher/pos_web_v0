@@ -17,7 +17,7 @@ export default function ReportsPage() {
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
-    const currencySymbol = settings?.currencySymbol || "Fbu"
+    const currencySymbol = settings?.currencySymbol || "FC"
 
     useEffect(() => {
         fetchReport()

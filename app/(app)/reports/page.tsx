@@ -2,21 +2,22 @@
 
 import { useState, useMemo, useEffect } from "react"
 import { Card, CardContent, CardHeader, CardTitle } from "@/components/ui/card"
-import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import { Table, TableBody, TableCell, TableFooter, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Input } from "@/components/ui/input"
 import { Label } from "@/components/ui/label"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { Button } from "@/components/ui/button"
-import { Loader2, Warehouse, Store, Printer } from "lucide-react"
+import { Loader2, Printer, MapPin, Building2, Warehouse, Banknote } from "lucide-react"
 import { useTransactions } from "@/hooks/use-transactions"
 import { useProducts } from "@/hooks/use-products"
 import { useUsers } from "@/hooks/use-users"
 import { useLocations } from "@/hooks/use-locations"
 import { useStock } from "@/hooks/use-stock"
 import { useSettings } from "@/hooks/use-settings"
+import { useAuth } from "@/lib/auth-context"
 
-const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " FBu"
+const fmt = (n: number) => n.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + " FC"
+const fmtQty = (n: number) => n.toLocaleString("fr-FR", { maximumFractionDigits: 2 })
 
 function printReport(
   title: string,
@@ -26,7 +27,7 @@ function printReport(
   colAligns: string[],
   footerTotals: string[],
   filterInfo: string,
-  paymentSummary?: { cash: number; card: number; credit: number },
+  cashTotal: number,
 ) {
   const alignStyle = (i: number) => {
     switch (colAligns[i]) {
@@ -131,17 +132,12 @@ function printReport(
     <tbody>${bodyHtml}${footerHtml}</tbody>
   </table>
 
-  ${paymentSummary ? `
   <div style="display:flex;gap:24px;justify-content:flex-end;margin-top:16px;padding-top:12px;border-top:2px solid #e2e8f0">
     <div style="text-align:right">
-      <span style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600">Espèces</span>
-      <div style="font-size:16px;font-weight:700;color:#059669">${fmt(paymentSummary.cash)}</div>
+      <span style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600">Total encaissé (Espèces)</span>
+      <div style="font-size:16px;font-weight:700;color:#059669">${fmt(cashTotal)}</div>
     </div>
-    <div style="text-align:right">
-      <span style="font-size:11px;color:#64748b;text-transform:uppercase;font-weight:600">Crédit</span>
-      <div style="font-size:16px;font-weight:700;color:#d97706">${fmt(paymentSummary.credit)}</div>
-    </div>
-  </div>` : ""}
+  </div>
   <div class="footer">
     ${store.name} &mdash; Document généré par Smart POS
   </div>
@@ -159,11 +155,13 @@ function printReport(
 }
 
 export default function ReportsPage() {
+  const { user } = useAuth()
   const [dateFrom, setDateFrom] = useState("")
   const [dateTo, setDateTo] = useState("")
   const [timeFrom, setTimeFrom] = useState("")
   const [timeTo, setTimeTo] = useState("")
   const [selectedUserId, setSelectedUserId] = useState("all")
+  const [locationFilter, setLocationFilter] = useState("all")
 
   const { transactions, loading: txLoading, fetchTransactions } = useTransactions()
   const { products, loading: productsLoading } = useProducts()
@@ -171,7 +169,15 @@ export default function ReportsPage() {
   const { locations } = useLocations()
   const { settings } = useSettings()
 
-  useEffect(() => { fetchTransactions() }, [fetchTransactions])
+  const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin"
+
+  useEffect(() => {
+    if (user?.role === "cashier") {
+      fetchTransactions(undefined, undefined, user.id)
+    } else {
+      fetchTransactions()
+    }
+  }, [fetchTransactions, user])
 
   const storeLocation = useMemo(() => locations.find(l => l.type === "store"), [locations])
 
@@ -208,7 +214,6 @@ export default function ReportsPage() {
         if (tStart <= tEnd) {
           if (tVal < tStart || tVal > tEnd) return false
         } else {
-          // Overnight shift (e.g. 07:00 → 02:00 next day)
           if (tVal < tStart && tVal > tEnd) return false
         }
       } else {
@@ -226,19 +231,20 @@ export default function ReportsPage() {
         }
       }
       if (selectedUserId !== "all" && t.userId !== selectedUserId) return false
+      if (isManagerOrAdmin && locationFilter !== "all" && t.locationId !== locationFilter) return false
       return true
     })
-  }, [completedSales, dateFrom, dateTo, timeFrom, timeTo, selectedUserId])
+  }, [completedSales, dateFrom, dateTo, timeFrom, timeTo, selectedUserId, locationFilter, isManagerOrAdmin])
 
   const productSalesQty = useMemo(() => {
-    const map: Record<string, { sold: number; total: number; name: string; type: string }> = {}
+    const map: Record<string, { sold: number; total: number; name: string }> = {}
     for (const t of filteredTransactions) {
       const items = t.items || []
       for (const item of items) {
         const pid = item.productId
         if (!map[pid]) {
           const prod = products.find((p: any) => p.id === pid)
-          map[pid] = { sold: 0, total: 0, name: item.productName || prod?.name || pid, type: prod?.productTypeId || "" }
+          map[pid] = { sold: 0, total: 0, name: item.productName || prod?.name || pid }
         }
         const qty = Number(item.quantity) || 0
         map[pid].sold += qty
@@ -248,34 +254,17 @@ export default function ReportsPage() {
     return map
   }, [filteredTransactions, products])
 
-  const drinkProducts = useMemo(() => {
-    return Object.entries(productSalesQty)
-      .sort((a, b) => b[1].sold - a[1].sold)
+  const productRows = useMemo(() => {
+    return Object.entries(productSalesQty).sort((a, b) => b[1].total - a[1].total)
   }, [productSalesQty])
 
-  const foodProducts = useMemo(() => {
-    return [] as [string, { sold: number; total: number; name: string; type: string }][]
-  }, [])
-
-  const paymentTotals = useMemo(() => {
-    const totals = { cash: 0, credit: 0, card: 0 }
-    for (const t of filteredTransactions) {
-      const method = t.paymentMethod || "cash"
-      if (method in totals) {
-        totals[method as keyof typeof totals] += Number(t.total) || 0
-      }
-    }
-    return totals
+  const cashTotal = useMemo(() => {
+    return filteredTransactions.reduce((sum: number, t: any) => sum + (Number(t.total) || 0), 0)
   }, [filteredTransactions])
 
-  const drinkGrandTotal = useMemo(() =>
-    drinkProducts.reduce((sum, [_, { total }]) => sum + total, 0),
-    [drinkProducts]
-  )
-
-  const foodGrandTotal = useMemo(() =>
-    foodProducts.reduce((sum, [_, { total }]) => sum + total, 0),
-    [foodProducts]
+  const grandTotal = useMemo(() =>
+    productRows.reduce((sum, [_, { total }]) => sum + total, 0),
+    [productRows]
   )
 
   const filterDesc = useMemo(() => {
@@ -288,8 +277,12 @@ export default function ReportsPage() {
       const u = users.find((u: any) => u.id === selectedUserId)
       if (u) parts.push(`Par ${u.name}`)
     }
+    if (isManagerOrAdmin && locationFilter !== "all") {
+      const loc = locations.find((l: any) => l.id === locationFilter)
+      if (loc) parts.push(`Emplacement : ${loc.name}`)
+    }
     return parts.length ? parts.join(" | ") : "Toute la période"
-  }, [dateFrom, dateTo, timeFrom, timeTo, selectedUserId, users])
+  }, [dateFrom, dateTo, timeFrom, timeTo, selectedUserId, locationFilter, users, locations, isManagerOrAdmin])
 
   const storeInfo = useMemo(() => ({
     name: settings?.name || "Smart POS",
@@ -297,31 +290,18 @@ export default function ReportsPage() {
     phone: settings?.phone || "",
   }), [settings])
 
-  const handlePrintBar = () => {
-    const columns = ["Produit", "Stock Bar", "Qté vendue", "Prix unitaire", "Total"]
+  const handlePrint = () => {
+    const columns = ["Produit", "Stock en magasin", "Qté vendue", "Prix unitaire", "Total"]
     const aligns = ["left", "right", "right", "right", "right"]
-    const rows = barProducts.map(([_, { name, sold, total }]) => [
+    const rows = productRows.map(([pid, { name, sold, total }]) => [
       name,
-      String(storeStockMap[(_ as any)] ?? 0),
-      String(sold),
+      fmtQty(storeStockMap[pid] ?? 0),
+      fmtQty(sold),
       fmt(sold > 0 ? total / sold : 0),
       fmt(total),
     ])
-    const footer = ["", "", "", "TOTAL", fmt(barGrandTotal)]
-    printReport("Rapport des ventes — Bar", storeInfo, columns, rows, aligns, footer, filterDesc, paymentTotals)
-  }
-
-  const handlePrintFood = () => {
-    const columns = ["Produit", "Qté vendue", "Prix unitaire", "Total"]
-    const aligns = ["left", "right", "right", "right"]
-    const rows = foodProducts.map(([_, { name, sold, total }]) => [
-      name,
-      String(sold),
-      fmt(sold > 0 ? total / sold : 0),
-      fmt(total),
-    ])
-    const footer = ["", "", "TOTAL", fmt(foodGrandTotal)]
-    printReport("Rapport des ventes — Cuisine", storeInfo, columns, rows, aligns, footer, filterDesc, paymentTotals)
+    const footer = ["", "", "", "TOTAL", fmt(grandTotal)]
+    printReport("Rapport des ventes par produit", storeInfo, columns, rows, aligns, footer, filterDesc, cashTotal)
   }
 
   return (
@@ -329,8 +309,14 @@ export default function ReportsPage() {
       <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold text-foreground">Rapport des ventes par produit</h2>
-          <p className="text-muted-foreground">Consultez les quantités vendues et les stocks par produit</p>
+          <p className="text-muted-foreground">Consultez les quantités vendues, les stocks et les encaissements par produit</p>
         </div>
+        {user?.role !== "cashier" && (
+          <Button variant="outline" onClick={handlePrint} disabled={productRows.length === 0} className="gap-2">
+            <Printer className="h-4 w-4" />
+            Imprimer le rapport
+          </Button>
+        )}
       </div>
 
       <Card className="border-border bg-card">
@@ -352,182 +338,119 @@ export default function ReportsPage() {
               <Label>Heure de fin</Label>
               <Input type="time" value={timeTo} onChange={(e) => setTimeTo(e.target.value)} className="w-32" />
             </div>
-            <div className="space-y-2">
-              <Label>Utilisateur</Label>
-              <Select value={selectedUserId} onValueChange={setSelectedUserId}>
-                <SelectTrigger className="w-44">
-                  <SelectValue placeholder="Tous les utilisateurs" />
-                </SelectTrigger>
-                <SelectContent>
-                  <SelectItem value="all">Tous les utilisateurs</SelectItem>
-                  {users.map((u: any) => (
-                    <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
-                  ))}
-                </SelectContent>
-              </Select>
-            </div>
+            {user?.role !== "cashier" && (
+              <div className="space-y-2">
+                <Label>Utilisateur</Label>
+                <Select value={selectedUserId} onValueChange={setSelectedUserId}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Tous les utilisateurs" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">Tous les utilisateurs</SelectItem>
+                    {users.map((u: any) => (
+                      <SelectItem key={u.id} value={u.id}>{u.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
+            {isManagerOrAdmin && (
+              <div className="space-y-2">
+                <Label>Emplacement</Label>
+                <Select value={locationFilter} onValueChange={setLocationFilter}>
+                  <SelectTrigger className="w-44">
+                    <SelectValue placeholder="Tous les emplacements" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="all">
+                      <span className="flex items-center gap-2">
+                        <Building2 className="h-3.5 w-3.5" /> Tous les emplacements
+                      </span>
+                    </SelectItem>
+                    {locations.map((loc: any) => (
+                      <SelectItem key={loc.id} value={loc.id}>
+                        <span className="flex items-center gap-2">
+                          {loc.type === "primary" ? <Warehouse className="h-3.5 w-3.5" /> : <MapPin className="h-3.5 w-3.5" />}
+                          {loc.name}
+                        </span>
+                      </SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
+            )}
           </div>
         </CardContent>
       </Card>
 
-      {!isLoading && (
-        <div className="grid grid-cols-2 gap-4">
-          <Card className="border-border/50 bg-card shadow-sm">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Espèces</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{fmt(paymentTotals.cash)}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center text-emerald-600 text-lg font-bold">$</div>
-            </CardContent>
-          </Card>
-          <Card className="border-border/50 bg-card shadow-sm">
-            <CardContent className="p-4 flex items-center justify-between">
-              <div>
-                <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Crédit</p>
-                <p className="text-2xl font-bold text-foreground mt-1">{fmt(paymentTotals.credit)}</p>
-              </div>
-              <div className="h-10 w-10 rounded-full bg-amber-500/10 flex items-center justify-center text-amber-600 text-lg font-bold">📋</div>
-            </CardContent>
-          </Card>
-        </div>
-      )}
+      <Card className="border-border/50 bg-card shadow-sm">
+        <CardContent className="p-4 flex items-center justify-between">
+          <div>
+            <p className="text-xs font-semibold uppercase tracking-wider text-muted-foreground">Total encaissé (Espèces)</p>
+            <p className="text-2xl font-bold text-foreground mt-1">{fmt(cashTotal)}</p>
+          </div>
+          <div className="h-10 w-10 rounded-full bg-emerald-500/10 flex items-center justify-center">
+            <Banknote className="h-5 w-5 text-emerald-600" />
+          </div>
+        </CardContent>
+      </Card>
 
       {isLoading ? (
         <div className="flex justify-center py-16">
           <Loader2 className="h-8 w-8 animate-spin text-primary" />
         </div>
       ) : (
-        <Tabs defaultValue="drinks" className="space-y-4">
-          <div className="flex items-center justify-between">
-            <TabsList>
-              <TabsTrigger value="drinks" className="gap-2">
-                <Store className="h-4 w-4" />
-                Boissons
-              </TabsTrigger>
-              <TabsTrigger value="food" className="gap-2">
-                <Warehouse className="h-4 w-4" />
-                Aliments
-              </TabsTrigger>
-            </TabsList>
-            <div className="flex gap-2">
-              <Button variant="outline" size="sm" onClick={handlePrintBar} className="gap-2">
-                <Printer className="h-4 w-4" />
-                Imprimer Boissons
-              </Button>
-              <Button variant="outline" size="sm" onClick={handlePrintFood} className="gap-2">
-                <Printer className="h-4 w-4" />
-                Imprimer Aliments
-              </Button>
-            </div>
-          </div>
-
-          <TabsContent value="drinks">
-            <Card className="border-border bg-card">
-              <CardHeader className="border-b border-border">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Store className="h-5 w-5 text-primary" />
-                  Produits Boissons
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead className="text-xs uppercase tracking-wider">Produit</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Stock Magasin</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Qté vendue</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Prix</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {drinkProducts.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
-                          Aucune vente trouvée
-                        </TableCell>
+        <Card className="border-border bg-card">
+          <CardHeader className="border-b border-border">
+            <CardTitle className="flex items-center gap-2 text-lg">
+              <Banknote className="h-5 w-5 text-primary" />
+              Ventes par produit
+            </CardTitle>
+          </CardHeader>
+          <CardContent className="p-0">
+            <Table>
+              <TableHeader>
+                <TableRow className="bg-muted/30">
+                  <TableHead className="text-xs uppercase tracking-wider">Produit</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-right">Stock en magasin</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-right">Qté vendue</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-right">Prix</TableHead>
+                  <TableHead className="text-xs uppercase tracking-wider text-right">Total</TableHead>
+                </TableRow>
+              </TableHeader>
+              <TableBody>
+                {productRows.length === 0 ? (
+                  <TableRow>
+                    <TableCell colSpan={5} className="h-24 text-center text-muted-foreground">
+                      Aucune vente trouvée
+                    </TableCell>
+                  </TableRow>
+                ) : (
+                  productRows.map(([pid, { name, sold, total }]) => {
+                    const price = sold > 0 ? total / sold : 0
+                    return (
+                      <TableRow key={pid} className="border-border/60">
+                        <TableCell className="font-medium">{name}</TableCell>
+                        <TableCell className="text-right">{fmtQty(storeStockMap[pid] ?? 0)}</TableCell>
+                        <TableCell className="text-right">{fmtQty(sold)}</TableCell>
+                        <TableCell className="text-right">{fmt(price)}</TableCell>
+                        <TableCell className="text-right font-semibold">{fmt(total)}</TableCell>
                       </TableRow>
-                    ) : (
-                      drinkProducts.map(([pid, { name, sold, total }]) => {
-                        const price = sold > 0 ? total / sold : 0
-                        return (
-                          <TableRow key={pid} className="border-border/60">
-                            <TableCell className="font-medium">{name}</TableCell>
-                            <TableCell className="text-right">{storeStockMap[pid] ?? 0}</TableCell>
-                            <TableCell className="text-right">{sold}</TableCell>
-                            <TableCell className="text-right">{fmt(price)}</TableCell>
-                            <TableCell className="text-right font-semibold">{fmt(total)}</TableCell>
-                          </TableRow>
-                        )
-                      })
-                    )}
-                  </TableBody>
-                  {drinkProducts.length > 0 && (
-                    <TableFooter>
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={4} className="text-right uppercase text-xs tracking-wider">Total Boissons</TableCell>
-                        <TableCell className="text-right">{fmt(drinkGrandTotal)}</TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  )}
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-
-          <TabsContent value="food">
-            <Card className="border-border bg-card">
-              <CardHeader className="border-b border-border">
-                <CardTitle className="flex items-center gap-2 text-lg">
-                  <Warehouse className="h-5 w-5 text-primary" />
-                  Produits Aliments
-                </CardTitle>
-              </CardHeader>
-              <CardContent className="p-0">
-                <Table>
-                  <TableHeader>
-                    <TableRow className="bg-muted/30">
-                      <TableHead className="text-xs uppercase tracking-wider">Produit</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Qté vendue</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Prix</TableHead>
-                      <TableHead className="text-xs uppercase tracking-wider text-right">Total</TableHead>
-                    </TableRow>
-                  </TableHeader>
-                  <TableBody>
-                    {foodProducts.length === 0 ? (
-                      <TableRow>
-                        <TableCell colSpan={4} className="h-24 text-center text-muted-foreground">
-                          Aucune vente trouvée
-                        </TableCell>
-                      </TableRow>
-                    ) : (
-                      foodProducts.map(([pid, { name, sold, total }]) => {
-                        const price = sold > 0 ? total / sold : 0
-                        return (
-                          <TableRow key={pid} className="border-border/60">
-                            <TableCell className="font-medium">{name}</TableCell>
-                            <TableCell className="text-right">{sold}</TableCell>
-                            <TableCell className="text-right">{fmt(price)}</TableCell>
-                            <TableCell className="text-right font-semibold">{fmt(total)}</TableCell>
-                          </TableRow>
-                        )
-                      })
-                    )}
-                  </TableBody>
-                  {foodProducts.length > 0 && (
-                    <TableFooter>
-                      <TableRow className="bg-muted/50 font-bold">
-                        <TableCell colSpan={3} className="text-right uppercase text-xs tracking-wider">Total Aliments</TableCell>
-                        <TableCell className="text-right">{fmt(foodGrandTotal)}</TableCell>
-                      </TableRow>
-                    </TableFooter>
-                  )}
-                </Table>
-              </CardContent>
-            </Card>
-          </TabsContent>
-        </Tabs>
+                    )
+                  })
+                )}
+              </TableBody>
+              {productRows.length > 0 && (
+                <TableFooter>
+                  <TableRow className="bg-muted/50 font-bold">
+                    <TableCell colSpan={4} className="text-right uppercase text-xs tracking-wider">Total</TableCell>
+                    <TableCell className="text-right">{fmt(grandTotal)}</TableCell>
+                  </TableRow>
+                </TableFooter>
+              )}
+            </Table>
+          </CardContent>
+        </Card>
       )}
     </div>
   )

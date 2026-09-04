@@ -1,6 +1,6 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { caisseSessions, transactions, products, stock, stockMovements, locations, productSellingUnits } from "@/lib/db/schema"
+import { transactions, products, stock, stockMovements, locations, productSellingUnits } from "@/lib/db/schema"
 import { eq, and, desc, sql, max } from "drizzle-orm"
 
 export async function GET() {
@@ -30,19 +30,6 @@ export async function POST(request: Request) {
 
         if (!items || items.length === 0 || !userId) {
             return NextResponse.json({ error: "Items and userId are required" }, { status: 400 })
-        }
-
-        // Require an open caisse session before any sale
-        const [openSession] = await db
-            .select()
-            .from(caisseSessions)
-            .where(eq(caisseSessions.status, "open"))
-            .limit(1)
-        if (!openSession) {
-            return NextResponse.json(
-                { error: "Aucune session caisse ouverte. Veuillez ouvrir la caisse avant d'effectuer une vente." },
-                { status: 400 }
-            )
         }
 
         // Resolve selling location

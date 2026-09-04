@@ -8,41 +8,43 @@ import { Tabs, TabsContent, TabsList, TabsTrigger } from "@/components/ui/tabs"
 import Link from "next/link"
 import { Calendar } from "@/components/ui/calendar"
 import { Popover, PopoverContent, PopoverTrigger } from "@/components/ui/popover"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import {
     BarChart, Bar, XAxis, YAxis, CartesianGrid, Tooltip, Legend, ResponsiveContainer,
     PieChart, Pie, Cell,
 } from "recharts"
-import { Loader2, DollarSign, Package, Truck, TrendingUp, TrendingDown, BarChart3, Warehouse, Store, CalendarIcon, Printer, ChevronRight, ShoppingBag, MapPin } from "lucide-react"
+import { Loader2, DollarSign, Package, ShoppingBag, TrendingUp, TrendingDown, BarChart3, Warehouse, Store, CalendarIcon, Printer, ChevronRight, MapPin, Banknote } from "lucide-react"
 import { printReport } from "@/lib/print-report"
 import { format } from "date-fns"
 import { fr } from "date-fns/locale"
 import { useSettings } from "@/hooks/use-settings"
+import { useLocations } from "@/hooks/use-locations"
 
 const COLORS = ["#3b82f6", "#f59e0b", "#10b981", "#ef4444", "#8b5cf6", "#ec4899"]
 
 export default function FinanceOverviewPage() {
     const { settings } = useSettings()
+    const { locations } = useLocations()
     const today = new Date()
     const [dateFrom, setDateFrom] = useState<Date>(new Date(today.getFullYear(), today.getMonth(), 1))
     const [dateTo, setDateTo] = useState<Date>(today)
+    const [locationFilter, setLocationFilter] = useState("all")
     const [data, setData] = useState<any>(null)
     const [loading, setLoading] = useState(true)
 
-    const currencySymbol = settings?.currencySymbol || "Fbu"
+    const currencySymbol = settings?.currencySymbol || "FC"
 
-    useEffect(() => {
-        fetchData()
-    }, [])
-
-    const fetchData = async (from?: Date, to?: Date) => {
+    const fetchData = async (from?: Date, to?: Date, locationId?: string) => {
         setLoading(true)
         try {
             const start = from || dateFrom
             const end = to || dateTo
+            const loc = locationId !== undefined ? locationId : locationFilter
             const params = new URLSearchParams({
                 startDate: start.toISOString(),
                 endDate: end.toISOString(),
             })
+            if (loc && loc !== "all") params.set("locationId", loc)
             const res = await fetch(`/api/finance/overview?${params}`)
             if (res.ok) {
                 setData(await res.json())
@@ -54,12 +56,20 @@ export default function FinanceOverviewPage() {
         }
     }
 
+    useEffect(() => {
+        fetchData()
+        // eslint-disable-next-line react-hooks/exhaustive-deps
+    }, [])
+
     const handleDateFilter = (from: Date, to: Date) => {
         setDateFrom(from)
         setDateTo(to)
         fetchData(from, to)
-        fetchBarData(from, to)
-        fetchCuisineData(from, to)
+    }
+
+    const handleLocationChange = (loc: string) => {
+        setLocationFilter(loc)
+        fetchData(dateFrom, dateTo, loc)
     }
 
     const presets = [
@@ -106,10 +116,20 @@ export default function FinanceOverviewPage() {
         )
     }
 
-    const stockPieData = Object.entries(data.stockValue.byLocation).map(([key, val]: any) => ({
+    const formatCurrency = (val: number) =>
+        val.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ` ${currencySymbol}`
+
+    const stockPieData = Object.entries(data.stockValue.byLocation || {}).map(([key, val]: any) => ({
         name: key.charAt(0).toUpperCase() + key.slice(1),
         value: val.value,
     }))
+
+    const cashFlowBarData = [
+        { name: "Ventes (encaissé)", value: data.cashFlow.revenue, fill: "#10b981" },
+        { name: "Achats", value: data.cashFlow.purchases, fill: "#f59e0b" },
+        { name: "Dépenses", value: data.cashFlow.expenses, fill: "#ef4444" },
+        { name: "Résultat net", value: data.cashFlow.net, fill: data.cashFlow.net >= 0 ? "#3b82f6" : "#ef4444" },
+    ]
 
     const profitBarData = Object.entries(data.byProductType || {}).map(([key, val]: any) => ({
         name: key.charAt(0).toUpperCase() + key.slice(1),
@@ -118,90 +138,41 @@ export default function FinanceOverviewPage() {
         Bénéfice: val.revenue - val.cogs,
     }))
 
-    const formatCurrency = (val: number) =>
-        val.toLocaleString("fr-FR", { minimumFractionDigits: 0, maximumFractionDigits: 0 }) + ` ${currencySymbol}`
-
     const handlePrint = () => {
         const period = `Période: ${format(dateFrom, "dd/MM/yyyy", { locale: fr })} — ${format(dateTo, "dd/MM/yyyy", { locale: fr })}`
-        const stockRows = Object.entries(data.stockValue.byLocation).map(([key, val]: any) => ({
-            location: key.charAt(0).toUpperCase() + key.slice(1),
-            value: val.value,
-            quantity: val.totalQty,
-            products: val.productCount,
-        }))
-        const origin = window.location.origin
         printReport({
             title: "Situation Financière",
             subtitle: "Smart POS System — Vue d'ensemble",
             period,
-            logoUrl: `${origin}/ahava.png`,
             metrics: [
-                { label: "Valeur du Stock", value: formatCurrency(data.stockValue.total), highlight: true },
-                { label: "Approvisionnements", value: formatCurrency(data.procurement.total) },
                 { label: "Chiffre d'Affaires", value: formatCurrency(data.sales.total), highlight: true },
-                { label: "Bénéfice Brut", value: formatCurrency(data.profit.grossProfit) },
-                { label: "Marge", value: `${data.profit.margin.toFixed(1)}%` },
+                { label: "Achats", value: formatCurrency(data.procurement.total) },
+                { label: "Dépenses", value: formatCurrency(data.expenses.total) },
+                { label: "Résultat Net (Trésorerie)", value: formatCurrency(data.cashFlow.net), highlight: true },
+                { label: "Valeur du Stock", value: formatCurrency(data.stockValue.total) },
                 { label: "Ventes (période)", value: String(data.sales.count) },
             ],
             columns: [
-                { header: "Département", key: "dept" },
-                { header: "Revenu", key: "revenue", format: "currency", align: "right" },
-                { header: "Coût des ventes", key: "cogs", format: "currency", align: "right" },
-                { header: "Bénéfice", key: "profit", format: "currency", align: "right" },
-                { header: "Marge", key: "margin", align: "right" },
-                { header: "Transactions", key: "transactions", align: "right" },
+                { header: "Rubrique", key: "label" },
+                { header: "Montant", key: "value", format: "currency", align: "right" },
             ],
             rows: [
-                ...Object.entries(data.byProductType || {}).map(([key, val]: any) => ({
-                    dept: key.charAt(0).toUpperCase() + key.slice(1),
-                    revenue: val.revenue,
-                    cogs: val.cogs,
-                    profit: val.revenue - val.cogs,
-                    margin: val.revenue > 0 ? `${(((val.revenue - val.cogs) / val.revenue) * 100).toFixed(1)}%` : "0%",
-                    transactions: val.count,
-                })),
-                {
-                    dept: "Total",
-                    revenue: data.sales.total,
-                    cogs: data.profit.cogs,
-                    profit: data.profit.grossProfit,
-                    margin: `${data.profit.margin.toFixed(1)}%`,
-                    transactions: data.sales.count,
-                },
+                { label: "Encaissements (ventes espèces)", value: data.sales.total },
+                { label: "Décaissements (achats)", value: -data.procurement.total },
+                { label: "Décaissements (dépenses opérationnelles)", value: -data.expenses.total },
+                { label: "Résultat net de trésorerie", value: data.cashFlow.net },
             ],
         })
-        setTimeout(() => {
-            if (stockRows.length > 0) {
-                printReport({
-                    title: "Stock par Emplacement",
-                    subtitle: "Smart POS System",
-                    period,
-                    logoUrl: `${origin}/ahava.png`,
-                    metrics: [
-                        { label: "Valeur Totale du Stock", value: formatCurrency(data.stockValue.total), highlight: true },
-                        ...stockRows.map((r: any) => ({
-                            label: r.location,
-                            value: formatCurrency(r.value),
-                        })),
-                    ],
-                    columns: [
-                        { header: "Emplacement", key: "location" },
-                        { header: "Valeur", key: "value", format: "currency", align: "right" },
-                        { header: "Quantité", key: "quantity", format: "number", align: "right" },
-                        { header: "Produits", key: "products", format: "number", align: "right" },
-                    ],
-                    rows: stockRows,
-                })
-            }
-        }, 800)
     }
+
+    const isFilteredByLocation = locationFilter !== "all"
 
     return (
         <div className="space-y-6">
             <div className="flex items-center justify-between">
                 <div>
                     <h1 className="text-3xl font-bold tracking-tight">Finance</h1>
-                    <p className="text-muted-foreground">Vue d&apos;ensemble de la valeur du stock, des approvisionnements et de la rentabilité</p>
+                    <p className="text-muted-foreground">Trésorerie, ventes espèce et rentabilité par emplacement</p>
                 </div>
                 <div className="flex gap-2">
                     <Button variant="outline" onClick={() => fetchData()}>
@@ -215,7 +186,7 @@ export default function FinanceOverviewPage() {
                 </div>
             </div>
 
-            {/* Date Filter */}
+            {/* Date & Location Filter */}
             <Card>
                 <CardContent className="p-4">
                     <div className="flex flex-wrap items-center gap-3">
@@ -254,6 +225,29 @@ export default function FinanceOverviewPage() {
                                 </PopoverContent>
                             </Popover>
                         </div>
+                        <div className="flex items-center gap-2">
+                            <MapPin className="h-4 w-4 text-muted-foreground" />
+                            <Select value={locationFilter} onValueChange={handleLocationChange}>
+                                <SelectTrigger className="w-44">
+                                    <SelectValue placeholder="Tous les emplacements" />
+                                </SelectTrigger>
+                                <SelectContent>
+                                    <SelectItem value="all">
+                                        <span className="flex items-center gap-2">
+                                            <Warehouse className="h-3.5 w-3.5" /> Tous les emplacements
+                                        </span>
+                                    </SelectItem>
+                                    {locations.map((loc: any) => (
+                                        <SelectItem key={loc.id} value={loc.id}>
+                                            <span className="flex items-center gap-2">
+                                                {loc.type === "primary" ? <Warehouse className="h-3.5 w-3.5" /> : <Store className="h-3.5 w-3.5" />}
+                                                {loc.name}
+                                            </span>
+                                        </SelectItem>
+                                    ))}
+                                </SelectContent>
+                            </Select>
+                        </div>
                         <div className="flex gap-1">
                             {presets.map((preset) => (
                                 <Button key={preset.label} variant="secondary" size="sm" onClick={preset.action}>
@@ -265,22 +259,35 @@ export default function FinanceOverviewPage() {
                 </CardContent>
             </Card>
 
+            {isFilteredByLocation && (
+                <div className="flex items-center gap-2 text-sm text-muted-foreground">
+                    <MapPin className="h-4 w-4" />
+                    <span>
+                        Ventes filtrées par emplacement :{" "}
+                        <span className="font-medium text-foreground">
+                            {locations.find((l: any) => l.id === locationFilter)?.name || "—"}
+                        </span>
+                        {" "}— les achats et dépenses sont toutes locations confondues.
+                    </span>
+                </div>
+            )}
+
             {/* Summary Cards */}
             <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-4">
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Valeur du Stock</CardTitle>
-                        <Package className="h-4 w-4 text-blue-500" />
+                        <CardTitle className="text-sm font-medium">Chiffre d&apos;Affaires</CardTitle>
+                        <ShoppingBag className="h-4 w-4 text-green-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-blue-600">{formatCurrency(data.stockValue.total)}</div>
-                        <p className="text-xs text-muted-foreground">Valorisation totale de l&apos;inventaire</p>
+                        <div className="text-2xl font-bold text-green-600">{formatCurrency(data.sales.total)}</div>
+                        <p className="text-xs text-muted-foreground">{data.sales.count} ventes espèces sur la période</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Approvisionnements</CardTitle>
-                        <Truck className="h-4 w-4 text-amber-500" />
+                        <CardTitle className="text-sm font-medium">Achats (fournisseurs)</CardTitle>
+                        <TrendingDown className="h-4 w-4 text-amber-500" />
                     </CardHeader>
                     <CardContent>
                         <div className="text-2xl font-bold text-amber-600">{formatCurrency(data.procurement.total)}</div>
@@ -289,24 +296,24 @@ export default function FinanceOverviewPage() {
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Chiffre d&apos;Affaires</CardTitle>
-                        <TrendingUp className="h-4 w-4 text-green-500" />
+                        <CardTitle className="text-sm font-medium">Dépenses opérationnelles</CardTitle>
+                        <Banknote className="h-4 w-4 text-orange-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className="text-2xl font-bold text-green-600">{formatCurrency(data.sales.total)}</div>
-                        <p className="text-xs text-muted-foreground">{data.sales.count} ventes sur la période</p>
+                        <div className="text-2xl font-bold text-orange-600">{formatCurrency(data.expenses.total)}</div>
+                        <p className="text-xs text-muted-foreground">{data.expenses.count} dépenses enregistrées</p>
                     </CardContent>
                 </Card>
                 <Card>
                     <CardHeader className="flex flex-row items-center justify-between space-y-0 pb-2">
-                        <CardTitle className="text-sm font-medium">Bénéfice Brut</CardTitle>
-                        <DollarSign className="h-4 w-4 text-purple-500" />
+                        <CardTitle className="text-sm font-medium">Résultat de trésorerie</CardTitle>
+                        <DollarSign className="h-4 w-4 text-blue-500" />
                     </CardHeader>
                     <CardContent>
-                        <div className={`text-2xl font-bold ${data.profit.grossProfit >= 0 ? "text-purple-600" : "text-destructive"}`}>
-                            {formatCurrency(data.profit.grossProfit)}
+                        <div className={`text-2xl font-bold ${data.cashFlow.net >= 0 ? "text-blue-600" : "text-destructive"}`}>
+                            {formatCurrency(data.cashFlow.net)}
                         </div>
-                        <p className="text-xs text-muted-foreground">Marge {data.profit.margin.toFixed(1)}%</p>
+                        <p className="text-xs text-muted-foreground">Ventes − Achats − Dépenses</p>
                     </CardContent>
                 </Card>
             </div>
@@ -327,15 +334,101 @@ export default function FinanceOverviewPage() {
                         </CardContent>
                     </Card>
                 </Link>
+                <Link href="/finance/expenses" className="block">
+                    <Card className="hover:bg-muted/50 transition-colors cursor-pointer border-orange-200 dark:border-orange-800">
+                        <CardContent className="p-4 flex items-center gap-4">
+                            <div className="h-12 w-12 rounded-full bg-orange-100 dark:bg-orange-900/30 flex items-center justify-center">
+                                <Banknote className="h-6 w-6 text-orange-600" />
+                            </div>
+                            <div className="flex-1">
+                                <h3 className="font-semibold">Dépenses</h3>
+                                <p className="text-sm text-muted-foreground">Suivi des dépenses opérationnelles</p>
+                            </div>
+                            <ChevronRight className="h-5 w-5 text-muted-foreground" />
+                        </CardContent>
+                    </Card>
+                </Link>
             </div>
 
-            <Tabs defaultValue="overview" className="space-y-4">
+            <Tabs defaultValue="cashflow" className="space-y-4">
                 <TabsList>
-                    <TabsTrigger value="overview">Rentabilité</TabsTrigger>
+                    <TabsTrigger value="cashflow">Trésorerie</TabsTrigger>
+                    <TabsTrigger value="profit">Rentabilité</TabsTrigger>
                     <TabsTrigger value="stock">Stock par Emplacement</TabsTrigger>
                 </TabsList>
 
-                <TabsContent value="overview" className="space-y-4">
+                <TabsContent value="cashflow" className="space-y-4">
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Flux de trésorerie</CardTitle>
+                            <CardDescription>Ventes encaissées, achats et dépenses sur la période</CardDescription>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="h-[350px]">
+                                <ResponsiveContainer width="100%" height="100%">
+                                    <BarChart data={cashFlowBarData}>
+                                        <CartesianGrid strokeDasharray="3 3" />
+                                        <XAxis dataKey="name" />
+                                        <YAxis tickFormatter={(v) => `${(v / 1000).toFixed(0)}k`} />
+                                        <Tooltip formatter={(value: number) => [formatCurrency(value)]} />
+                                        <Legend />
+                                        <Bar dataKey="value" radius={[4, 4, 0, 0]}>
+                                            {cashFlowBarData.map((entry, idx) => (
+                                                <Cell key={idx} fill={entry.fill} />
+                                            ))}
+                                        </Bar>
+                                    </BarChart>
+                                </ResponsiveContainer>
+                            </div>
+                        </CardContent>
+                    </Card>
+
+                    <Card>
+                        <CardHeader>
+                            <CardTitle>Détail de trésorerie</CardTitle>
+                        </CardHeader>
+                        <CardContent>
+                            <div className="space-y-4">
+                                <div className="flex items-center">
+                                    <span className="flex h-2 w-2 rounded-full bg-emerald-500 mr-2" />
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-medium leading-none">Ventes (encaissé)</p>
+                                        <p className="text-xs text-muted-foreground">Recettes en espèces</p>
+                                    </div>
+                                    <div className="font-medium text-emerald-600">+{formatCurrency(data.cashFlow.revenue)}</div>
+                                </div>
+                                <div className="flex items-center">
+                                    <span className="flex h-2 w-2 rounded-full bg-amber-500 mr-2" />
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-medium leading-none">Achats fournisseurs</p>
+                                        <p className="text-xs text-muted-foreground">Commandes reçues</p>
+                                    </div>
+                                    <div className="font-medium text-amber-600">−{formatCurrency(data.cashFlow.purchases)}</div>
+                                </div>
+                                <div className="flex items-center">
+                                    <span className="flex h-2 w-2 rounded-full bg-orange-500 mr-2" />
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-medium leading-none">Dépenses opérationnelles</p>
+                                        <p className="text-xs text-muted-foreground">Loyer, électricité, etc.</p>
+                                    </div>
+                                    <div className="font-medium text-orange-600">−{formatCurrency(data.cashFlow.expenses)}</div>
+                                </div>
+                                <div className="flex items-center border-t pt-4">
+                                    <span className="flex h-2 w-2 rounded-full bg-blue-500 mr-2" />
+                                    <div className="flex-1 space-y-1">
+                                        <p className="text-sm font-medium leading-none">Résultat net de trésorerie</p>
+                                        <p className="text-xs text-muted-foreground">Total entrées moins total sorties</p>
+                                    </div>
+                                    <div className={`font-bold ${data.cashFlow.net >= 0 ? "text-blue-600" : "text-destructive"}`}>
+                                        {formatCurrency(data.cashFlow.net)}
+                                    </div>
+                                </div>
+                            </div>
+                        </CardContent>
+                    </Card>
+                </TabsContent>
+
+                <TabsContent value="profit" className="space-y-4">
                     {/* Product Type breakdown */}
                     <div className="grid gap-4 md:grid-cols-2 lg:grid-cols-3">
                         {Object.entries(data.byProductType || {}).map(([key, val]: any) => {
@@ -458,7 +551,7 @@ export default function FinanceOverviewPage() {
                             </CardHeader>
                             <CardContent>
                                 <div className="space-y-4">
-                                    {Object.entries(data.stockValue.byLocation).map(([key, val]: any, idx: number) => (
+                                    {Object.entries(data.stockValue.byLocation || {}).map(([key, val]: any, idx: number) => (
                                         <div key={key} className="flex items-center gap-3 p-3 rounded-lg border">
                                             <div
                                                 className="h-10 w-10 rounded-full flex items-center justify-center"
@@ -484,7 +577,7 @@ export default function FinanceOverviewPage() {
                                             </div>
                                         </div>
                                     ))}
-                                    {Object.keys(data.stockValue.byLocation).length === 0 && (
+                                    {Object.keys(data.stockValue.byLocation || {}).length === 0 && (
                                         <p className="text-muted-foreground text-center py-8">Aucune donnée de stock disponible</p>
                                     )}
                                 </div>

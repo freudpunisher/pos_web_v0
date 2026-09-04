@@ -34,7 +34,7 @@ export default function RawMaterialsPage() {
     const [search, setSearch] = useState("")
     const [isCreateOpen, setIsCreateOpen] = useState(false)
 
-    const currencySymbol = settings?.currencySymbol || "Fbu"
+    const currencySymbol = settings?.currencySymbol || "FC"
 
     const [formData, setFormData] = useState({
         name: "",

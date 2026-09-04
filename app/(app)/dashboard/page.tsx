@@ -62,7 +62,7 @@ export default function DashboardPage() {
 
   const activeOrders = orderStatusCounts.pending + orderStatusCounts.confirmed
 
-  const currencySymbol = settings?.currencySymbol || "Fbu"
+  const currencySymbol = settings?.currencySymbol || "FC"
 
   return (
     <div className="space-y-6">

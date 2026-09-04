@@ -53,13 +53,11 @@ type Unit = {
   symbol?: string
 }
 
-const LOCATION_TYPES = ["primary", "store", "branch", "delivery_point"] as const
+const LOCATION_TYPES = ["primary", "store"] as const
 type LocationType = typeof LOCATION_TYPES[number]
 const LOCATION_LABELS: Record<LocationType, string> = {
   primary: "Principal",
-  store: "Magasin",
-  branch: "Succursale",
-  delivery_point: "Point de livraison",
+  store: "Stock",
 }
 
 export default function SettingsPage() {
@@ -71,6 +69,8 @@ export default function SettingsPage() {
   const { suppliers, loading: suppliersLoading, createSupplier, updateSupplier, toggleSupplierStatus } = useSuppliers()
   const { types: productTypes, loading: productTypesLoading, createType, updateType, deleteType } = useProductTypes()
   const { subcategories, loading: subcategoriesLoading, createSubcategory, updateSubcategory, deleteSubcategory } = useSubcategories()
+
+  const hasPrimaryLocation = locations.some((l) => l.type === "primary")
 
   const [isSupplierDialogOpen, setIsSupplierDialogOpen] = useState(false)
   const [editingSupplier, setEditingSupplier] = useState<any | null>(null)
@@ -576,7 +576,7 @@ export default function SettingsPage() {
                         USD: "$",
                         EUR: "€",
                         GBP: "£",
-                        Fbu: "Fbu ",
+                        FC: "FC ",
                       }
                       setStoreInfo({ ...storeInfo, currency: value, currencySymbol: symbolMap[value] || value })
                     }}
@@ -588,7 +588,7 @@ export default function SettingsPage() {
                       <SelectItem value="USD">USD ($)</SelectItem>
                       <SelectItem value="EUR">EUR (€)</SelectItem>
                       <SelectItem value="GBP">GBP (£)</SelectItem>
-                      <SelectItem value="Fbu">Fbu (Fbu)</SelectItem>
+                      <SelectItem value="FC">FC (Franc Congolais)</SelectItem>
                     </SelectContent>
                   </Select>
                 </div>
@@ -1807,7 +1807,7 @@ export default function SettingsPage() {
                         >
                           <SelectTrigger><SelectValue /></SelectTrigger>
                           <SelectContent>
-                            {LOCATION_TYPES.map((t) => (
+                            {LOCATION_TYPES.filter((t) => t !== "primary" || !hasPrimaryLocation).map((t) => (
                               <SelectItem key={t} value={t}>{LOCATION_LABELS[t]}</SelectItem>
                             ))}
                           </SelectContent>
@@ -1910,7 +1910,7 @@ export default function SettingsPage() {
                   >
                     <SelectTrigger><SelectValue /></SelectTrigger>
                     <SelectContent>
-                      {LOCATION_TYPES.map((t) => (
+                      {LOCATION_TYPES.filter((t) => t !== "primary" || !hasPrimaryLocation || editLocation?.type === "primary").map((t) => (
                         <SelectItem key={t} value={t}>{LOCATION_LABELS[t]}</SelectItem>
                       ))}
                     </SelectContent>

@@ -50,11 +50,41 @@ Seeds the database with 32 products across all categories.
 npx tsx scripts/seed-products.ts
 ```
 
-### 4. `seed.ts` (Master Script)
+### 4. `seed-menu-permissions.ts`
+Seeds the database with role-based menu permissions for the sidebar navigation.
+
+**Menu items seeded (17 total):**
+- Dashboard: admin, manager
+- Sales (POS): admin, manager, cashier
+- Sales History: admin, manager, cashier
+- Purchases: admin, manager
+- Products: admin, manager
+- Stock Status: admin, manager, stock_manager
+- Stock Adjustments: admin, manager, stock_manager
+- Inventory Count: admin, manager, stock_manager
+- Stock Movements: admin, manager, stock_manager
+- Transfers: admin, manager
+- Expenses: admin, manager
+- Locations: admin, manager
+- Finance: admin, manager
+- Reports: admin, manager, stock_manager
+- Users: admin
+- Settings: admin
+- Notifications: admin, manager, cashier, stock_manager
+
+The app is cash-only and no longer exposes Orders, Caisse, Clients, or Credit Management menus.
+
+**Run:**
+```bash
+npx tsx scripts/seed-menu-permissions.ts
+```
+
+### 5. `seed.ts` (Master Script)
 Runs all seed scripts in the correct order:
 1. Admin user
 2. Categories
 3. Products
+4. Menu Permissions
 
 **Run:**
 ```bash
@@ -74,6 +104,7 @@ npx tsx scripts/seed.ts
 npx tsx scripts/seed-admin.ts
 npx tsx scripts/seed-categories.ts
 npx tsx scripts/seed-products.ts
+npx tsx scripts/seed-menu-permissions.ts
 ```
 
 ### Re-seeding
