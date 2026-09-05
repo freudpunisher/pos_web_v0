@@ -67,7 +67,6 @@ export function StaffFormDialog({ staff, open, onOpenChange, onSubmit }: StaffFo
               </SelectTrigger>
               <SelectContent>
                 <SelectItem value="cashier">Caissier</SelectItem>
-                <SelectItem value="stock_manager">Gestionnaire de stock</SelectItem>
                 <SelectItem value="manager">Gérant</SelectItem>
                 <SelectItem value="admin">Admin</SelectItem>
               </SelectContent>

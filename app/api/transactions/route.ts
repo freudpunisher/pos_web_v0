@@ -1,7 +1,7 @@
 import { NextResponse } from "next/server"
 import { NextRequest } from "next/server"
 import db from "@/lib/db"
-import { caisseSessions, transactions, transactionItems, products, stock, stockMovements, clients, locations, cashFlow, creditRecords, productSellingUnits } from "@/lib/db/schema"
+import { transactions, transactionItems, products, stock, stockMovements, clients, locations, cashFlow, creditRecords, productSellingUnits } from "@/lib/db/schema"
 import { eq, sql, gte, lte, and, max } from "drizzle-orm"
 import { resolveWarehouse } from "@/lib/db/location-utils"
 
@@ -15,6 +15,7 @@ export async function GET(request: NextRequest) {
         const searchParams = request.nextUrl.searchParams
         const dateFrom = searchParams.get("dateFrom")
         const dateTo = searchParams.get("dateTo")
+        const userId = searchParams.get("userId")
 
         const conditions = []
         if (dateFrom) {
@@ -27,6 +28,9 @@ export async function GET(request: NextRequest) {
             d.setHours(23, 59, 59, 999)
             conditions.push(lte(transactions.date, sql`${fmt(d)}::timestamp`))
         }
+        if (userId) {
+            conditions.push(eq(transactions.userId, userId))
+        }
 
         const allTransactions = await db.query.transactions.findMany({
             where: conditions.length ? and(...conditions) : undefined,
@@ -34,8 +38,6 @@ export async function GET(request: NextRequest) {
                 items: true,
                 client: true,
                 user: true,
-                waiter: true,
-                table: true,
             },
             orderBy: (transactions, { desc }) => [desc(transactions.date)],
         })
@@ -62,21 +64,6 @@ export async function POST(request: Request) {
         }
         if (!["cash", "credit", "card"].includes(normalizedPaymentMethod)) {
             return NextResponse.json({ error: "Invalid payment method" }, { status: 400 })
-        }
-
-        // Require an open caisse session before any sale
-        if (normalizedType === "sale") {
-            const [openSession] = await db
-                .select()
-                .from(caisseSessions)
-                .where(eq(caisseSessions.status, "open"))
-                .limit(1)
-            if (!openSession) {
-                return NextResponse.json(
-                    { error: "Aucune session caisse ouverte. Veuillez ouvrir la caisse avant d'effectuer une vente." },
-                    { status: 400 }
-                )
-            }
         }
 
         // Sanitize IDs for migration/stale sessions
@@ -142,7 +129,7 @@ export async function POST(request: Request) {
             const isCashLike = ["cash", "card"].includes(normalizedPaymentMethod)
             if (isCashLike) {
                 const entryType = normalizedType === "purchase" ? "outflow" : "inflow"
-                const category = normalizedType === "purchase" ? "purchases" : "sales"
+                const category = normalizedType === "purchase" ? "purchase" : "sale"
 
                 const [createdPaymentEntry] = await tx.insert(cashFlow).values({
                     date: new Date(),

@@ -3,6 +3,7 @@ import { NextRequest } from "next/server"
 import db from "@/lib/db"
 import { transactions, transactionItems, products } from "@/lib/db/schema"
 import { sql, eq, ne, and, gte, lte } from "drizzle-orm"
+import { requireManagerOrAdmin } from "@/lib/auth-guard"
 
 function fmt(date: Date) {
   const p = (n: number) => String(n).padStart(2, "0")
@@ -10,9 +11,13 @@ function fmt(date: Date) {
 }
 
 export async function GET(request: NextRequest) {
+  const authError = await requireManagerOrAdmin()
+  if (authError) return authError
+
   try {
     const searchParams = request.nextUrl.searchParams
     const period = searchParams.get("period") || "week"
+    const locationId = searchParams.get("locationId")
 
     const now = new Date()
     const today = new Date(now)
@@ -46,7 +51,8 @@ export async function GET(request: NextRequest) {
             and(
               gte(transactions.date, sql`${startDate}::timestamp`),
               lte(transactions.date, sql`${endDate}::timestamp`),
-              ne(transactions.status, "cancelled")
+              ne(transactions.status, "cancelled"),
+              ...(locationId ? [eq(transactions.locationId, locationId)] : [])
             )
           )
           .groupBy(sql`DATE(${transactions.date})`)

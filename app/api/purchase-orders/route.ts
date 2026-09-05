@@ -6,6 +6,7 @@ import { purchaseOrders, purchaseOrderItems, suppliers, products, stock, stockMo
 import { eq, desc, and, gte, lte, lt } from "drizzle-orm";
 import { sql } from "drizzle-orm";
 import { resolveWarehouse } from "@/lib/db/location-utils";
+import { requireManagerOrAdmin } from "@/lib/auth-guard";
 
 function fmt(date: Date) {
   const p = (n: number) => String(n).padStart(2, "0")
@@ -67,6 +68,9 @@ export async function GET(request: NextRequest) {
 // POST - CREATE (now always pending)
 export async function POST(request: Request) {
   try {
+    const authError = await requireManagerOrAdmin()
+    if (authError) return authError
+
     const body = await request.json();
     const { supplierId, items, total, userId, sector } = body;
 
@@ -124,6 +128,9 @@ export async function POST(request: Request) {
 // NEW: PATCH - update order (only if pending)
 export async function PATCH(request: Request) {
   try {
+    const authError = await requireManagerOrAdmin()
+    if (authError) return authError
+
     const body = await request.json();
     const { id, supplierId, items, total } = body;
 

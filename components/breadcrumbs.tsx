@@ -16,7 +16,6 @@ const routeLabels: Record<string, string> = {
   "stock-movements": "Mouvements de stock",
   stock: "Stock",
   transfers: "Transferts",
-  caisse: "Caisse",
   expenses: "Dépenses",
   clients: "Clients",
   credit: "Gestion des crédits",

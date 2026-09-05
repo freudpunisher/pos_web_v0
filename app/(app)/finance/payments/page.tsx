@@ -146,7 +146,6 @@ export default function PaymentsHistoryPage() {
               <SelectContent>
                 <SelectItem value="all">Toutes références</SelectItem>
                 <SelectItem value="transaction">Facture</SelectItem>
-                <SelectItem value="credit_payment">Paiement crédit</SelectItem>
                 <SelectItem value="expense">Dépense</SelectItem>
               </SelectContent>
             </Select>

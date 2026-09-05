@@ -16,6 +16,7 @@ import { useTransactions } from "@/hooks/use-transactions"
 import { useClients } from "@/hooks/use-clients"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/hooks/use-settings"
+import { useLocations } from "@/hooks/use-locations"
 import { PaymentDialog } from "@/components/pos/payment-dialog"
 import { printThermal, type ReceiptData } from "@/lib/thermal-print"
 import { printReport } from "@/lib/print-report"
@@ -24,16 +25,20 @@ import {
   Receipt, Search, DollarSign, Banknote, ShoppingCart,
   Calendar, User, Package, Loader2, Eye, Printer, CreditCard,
   TrendingUp, ArrowUpDown, ChevronDown, X, Pencil, Trash2, AlertTriangle,
-  Upload, Image as ImageIcon,
+  Upload, Image as ImageIcon, MapPin, Building2, Warehouse,
 } from "lucide-react"
 
 export default function SalesHistoryPage() {
   const { user } = useAuth()
   const { settings } = useSettings()
   const { transactions, loading, fetchTransactions, updateTransaction, cancelTransaction } = useTransactions()
+  const { locations } = useLocations()
   const receiptRef = useRef<HTMLDivElement>(null)
 
+  const isManagerOrAdmin = user?.role === "manager" || user?.role === "admin"
+
   const [search, setSearch] = useState("")
+  const [locationFilter, setLocationFilter] = useState("all")
   const [selectedTransaction, setSelectedTransaction] = useState<any | null>(null)
   const [showDetails, setShowDetails] = useState(false)
   const [showReport, setShowReport] = useState(false)
@@ -67,8 +72,12 @@ export default function SalesHistoryPage() {
   }, [allClients, clientSearch])
 
   useEffect(() => {
-    fetchTransactions()
-  }, [fetchTransactions])
+    if (user?.role === "cashier") {
+      fetchTransactions(undefined, undefined, user.id)
+    } else {
+      fetchTransactions()
+    }
+  }, [fetchTransactions, user])
 
   const salesTransactions = useMemo(() => {
     return transactions.filter((t: any) => t.type === "sale")
@@ -85,6 +94,10 @@ export default function SalesHistoryPage() {
       } else if (statusFilter === "cancelled") {
         filtered = filtered.filter((t: any) => t.status === "cancelled")
       }
+    }
+
+    if (locationFilter !== "all") {
+      filtered = filtered.filter((t: any) => t.locationId === locationFilter)
     }
 
     if (search) {
@@ -110,7 +123,7 @@ export default function SalesHistoryPage() {
     }
 
     return filtered
-  }, [salesTransactions, search, startDate, endDate, statusFilter])
+  }, [salesTransactions, search, startDate, endDate, statusFilter, locationFilter])
 
   const totalPages = Math.max(1, Math.ceil(filteredTransactions.length / pageSize))
   const paginatedTransactions = useMemo(() => {
@@ -120,7 +133,7 @@ export default function SalesHistoryPage() {
 
   useEffect(() => {
     setPage(1)
-  }, [search, startDate, endDate, statusFilter])
+  }, [search, startDate, endDate, statusFilter, locationFilter])
 
   const statsTransactions = useMemo(() => {
     const today = new Date()
@@ -349,7 +362,7 @@ export default function SalesHistoryPage() {
       items,
       total: Number(data.total),
       paymentMethod: data.status === "completed" ? data.paymentMethod : (data.status === "cancelled" ? "ANNULÉ" : "EN ATTENTE"),
-      currencySymbol: ({ USD: "$", EUR: "€", GBP: "£", Fbu: "Fbu " } as Record<string, string>)[settings?.currency] || settings?.currencySymbol || "Fbu",
+      currencySymbol: ({ USD: "$", EUR: "€", GBP: "£", FC: "FC " } as Record<string, string>)[settings?.currency] || settings?.currencySymbol || "FC",
       billReference: data.reference || "BL-" + data.id.slice(0, 8).toUpperCase(),
     })
   }
@@ -374,15 +387,19 @@ export default function SalesHistoryPage() {
       `}</style>
 
       {/* Header */}
-      <div className="flex items-center justify-between">
+        <div className="flex items-center justify-between">
         <div>
           <h2 className="text-2xl font-bold tracking-tight">Historique des ventes</h2>
-          <p className="text-muted-foreground">Consultez et gérez toutes les ventes effectuées</p>
+          <p className="text-muted-foreground">
+            {user?.role === "cashier" ? "Vos ventes personnelles" : "Consultez et gérez toutes les ventes effectuées"}
+          </p>
         </div>
-        <Button variant="outline" onClick={() => setShowReport(true)} disabled={filteredTransactions.length === 0}>
-          <Printer className="h-4 w-4 mr-2" />
-          Imprimer le rapport
-        </Button>
+        {user?.role !== "cashier" && (
+          <Button variant="outline" onClick={() => setShowReport(true)} disabled={filteredTransactions.length === 0}>
+            <Printer className="h-4 w-4 mr-2" />
+            Imprimer le rapport
+          </Button>
+        )}
       </div>
 
       {/* Stats Cards */}
@@ -470,6 +487,31 @@ export default function SalesHistoryPage() {
               />
             </div>
             <div className="flex items-center gap-3 flex-wrap">
+              {isManagerOrAdmin && (
+                <div className="flex items-center gap-2">
+                  <MapPin className="h-4 w-4 text-muted-foreground shrink-0" />
+                  <Select value={locationFilter} onValueChange={setLocationFilter}>
+                    <SelectTrigger className="w-44 h-10">
+                      <SelectValue placeholder="Tous les emplacements" />
+                    </SelectTrigger>
+                    <SelectContent>
+                      <SelectItem value="all">
+                        <span className="flex items-center gap-2">
+                          <Building2 className="h-3.5 w-3.5" /> Tous les emplacements
+                        </span>
+                      </SelectItem>
+                      {locations.map((loc: any) => (
+                        <SelectItem key={loc.id} value={loc.id}>
+                          <span className="flex items-center gap-2">
+                            {loc.type === "primary" ? <Warehouse className="h-3.5 w-3.5" /> : <Building2 className="h-3.5 w-3.5" />}
+                            {loc.name}
+                          </span>
+                        </SelectItem>
+                      ))}
+                    </SelectContent>
+                  </Select>
+                </div>
+              )}
               <div className="flex items-center gap-2">
                 <Calendar className="h-4 w-4 text-muted-foreground shrink-0" />
                 <Input type="date" value={startDate} onChange={(e) => setStartDate(e.target.value)} className="w-36 h-10" />
@@ -520,6 +562,9 @@ export default function SalesHistoryPage() {
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">ID</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Date et heure</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Client</TableHead>
+                      {isManagerOrAdmin && (
+                        <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Emplacement</TableHead>
+                      )}
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Articles</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider">Paiement</TableHead>
                       <TableHead className="text-xs font-semibold text-muted-foreground uppercase tracking-wider text-right">Total</TableHead>
@@ -572,6 +617,22 @@ export default function SalesHistoryPage() {
                               <span className="text-sm text-muted-foreground italic">Client libre</span>
                             )}
                           </TableCell>
+                          {isManagerOrAdmin && (
+                            <TableCell>
+                              <div className="flex items-center gap-1.5">
+                                {(() => {
+                                  const loc = locations.find((l: any) => l.id === txn.locationId)
+                                  const LocIcon = loc?.type === "primary" ? Warehouse : Building2
+                                  return (
+                                    <>
+                                      <LocIcon className="h-3.5 w-3.5 text-muted-foreground shrink-0" />
+                                      <span className="text-sm">{loc?.name || "—"}</span>
+                                    </>
+                                  )
+                                })()}
+                              </div>
+                            </TableCell>
+                          )}
                           <TableCell>
                             <Badge variant="outline" className="text-xs font-normal">
                               {txn.items?.length || 0} {txn.items?.length === 1 ? "article" : "articles"}
@@ -610,14 +671,14 @@ export default function SalesHistoryPage() {
                            </TableCell>
                              <TableCell className="text-right">
                                <div className="flex items-center justify-end gap-1">
-                                {txn.status !== "completed" && txn.status !== "cancelled" && (
+                                 {txn.status !== "completed" && txn.status !== "cancelled" && (user?.role === "manager" || user?.role === "admin") && (
                                    <>
-                                    <Button size="sm" className="h-8" onClick={() => setPaymentDialog({ open: true, order: txn })}>
-                                      <CreditCard className="h-3.5 w-3.5 mr-1" /> Payer
-                                    </Button>
-                                    <Button size="sm" variant="secondary" className="h-8" onClick={() => { setCreditClientId(""); setClientSearch(""); setCreditDialog({ open: true, transaction: txn }) }}>
-                                      <CreditCard className="h-3.5 w-3.5 mr-1" /> Crédit
+                                     <Button size="sm" className="h-8" onClick={() => setPaymentDialog({ open: true, order: txn })}>
+                                       <CreditCard className="h-3.5 w-3.5 mr-1" /> Payer
                                      </Button>
+                                     <Button size="sm" variant="secondary" className="h-8" onClick={() => { setCreditClientId(""); setClientSearch(""); setCreditDialog({ open: true, transaction: txn }) }}>
+                                       <CreditCard className="h-3.5 w-3.5 mr-1" /> Crédit
+                                      </Button>
                                    </>
                                  )}
                                  {txn.status !== "completed" && txn.status !== "cancelled" && (user?.role === "manager" || user?.role === "admin") && (

@@ -48,9 +48,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
   if (isSalesPage) {
     return (
       <div className="flex h-screen overflow-hidden bg-background relative">
-        <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.03]">
-          <img src="/ahava.png" alt="" className="max-w-[60%] max-h-[60%] object-contain" />
-        </div>
         <Sidebar />
         <div className="flex flex-1 flex-col overflow-hidden relative z-10">
           <Header />
@@ -64,9 +61,6 @@ function AppLayoutContent({ children }: { children: React.ReactNode }) {
 
   return (
     <div className="flex h-screen overflow-hidden bg-background relative">
-      <div className="fixed inset-0 pointer-events-none z-0 flex items-center justify-center opacity-[0.04] dark:opacity-[0.03]">
-        <img src="/ahava.png" alt="" className="max-w-[60%] max-h-[60%] object-contain" />
-      </div>
       <Sidebar />
       <div className="flex flex-1 flex-col overflow-hidden relative z-10">
         <Header />

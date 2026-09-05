@@ -1,15 +1,28 @@
 import { NextResponse } from "next/server"
 import db from "@/lib/db"
-import { stock, products, locations, purchaseOrders, transactions, transactionItems, productTypes } from "@/lib/db/schema"
+import { stock, products, locations, purchaseOrders, transactions, transactionItems, productTypes, expenses } from "@/lib/db/schema"
 import { sql, eq, and, gte, lte } from "drizzle-orm"
+import { requireManagerOrAdmin } from "@/lib/auth-guard"
 
 export async function GET(request: Request) {
+    const authError = await requireManagerOrAdmin()
+    if (authError) return authError
+
     try {
         const { searchParams } = new URL(request.url)
         const startDate = searchParams.get("startDate") || new Date(new Date().getFullYear(), new Date().getMonth(), 1).toISOString()
         const endDate = searchParams.get("endDate") || new Date().toISOString()
+        const locationId = searchParams.get("locationId") || undefined
         const start = new Date(startDate)
         const end = new Date(endDate)
+
+        const txFilter = [
+            gte(transactions.date, start),
+            lte(transactions.date, end),
+            eq(transactions.type, "sale"),
+            eq(transactions.status, "completed"),
+            ...(locationId ? [eq(transactions.locationId, locationId)] : []),
+        ]
 
         // 1. Stock Value by Location Type
         const stockValueByLocation = await db
@@ -61,12 +74,7 @@ export async function GET(request: Request) {
                 count: sql<number>`count(*)`,
             })
             .from(transactions)
-            .where(and(
-                gte(transactions.date, start),
-                lte(transactions.date, end),
-                eq(transactions.type, "sale"),
-                eq(transactions.status, "completed"),
-            ))
+            .where(and(...txFilter))
 
         const sales = {
             total: Number(salesResult[0]?.total || 0),
@@ -81,12 +89,7 @@ export async function GET(request: Request) {
             .from(transactionItems)
             .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
             .innerJoin(products, eq(transactionItems.productId, products.id))
-            .where(and(
-                gte(transactions.date, start),
-                lte(transactions.date, end),
-                eq(transactions.type, "sale"),
-                eq(transactions.status, "completed"),
-            ))
+            .where(and(...txFilter))
 
         const cogs = Number(cogsResult[0]?.total || 0)
 
@@ -102,12 +105,7 @@ export async function GET(request: Request) {
             .innerJoin(transactions, eq(transactionItems.transactionId, transactions.id))
             .innerJoin(products, eq(transactionItems.productId, products.id))
             .innerJoin(productTypes, eq(products.productTypeId, productTypes.id))
-            .where(and(
-                gte(transactions.date, start),
-                lte(transactions.date, end),
-                eq(transactions.type, "sale"),
-                eq(transactions.status, "completed"),
-            ))
+            .where(and(...txFilter))
             .groupBy(productTypes.name)
 
         const byType: Record<string, { revenue: number; cogs: number; count: number }> = {}
@@ -119,6 +117,26 @@ export async function GET(request: Request) {
             }
         }
 
+        // 6. Expenses (operational outflows) on the period
+        const expensesResult = await db
+            .select({
+                total: sql<number>`sum(${expenses.amount}::numeric)`,
+                count: sql<number>`count(*)`,
+            })
+            .from(expenses)
+            .where(and(
+                gte(expenses.date, start),
+                lte(expenses.date, end),
+            ))
+
+        const expenseStats = {
+            total: Number(expensesResult[0]?.total || 0),
+            count: Number(expensesResult[0]?.count || 0),
+        }
+
+        const grossProfit = sales.total - cogs
+        const cashFlowNet = sales.total - procurement.total - expenseStats.total
+
         return NextResponse.json({
             period: { start, end },
             stockValue: {
@@ -126,6 +144,7 @@ export async function GET(request: Request) {
                 byLocation: stockByLocation,
             },
             procurement,
+            expenses: expenseStats,
             sales: {
                 total: sales.total,
                 count: sales.count,
@@ -133,8 +152,14 @@ export async function GET(request: Request) {
             profit: {
                 revenue: sales.total,
                 cogs,
-                grossProfit: sales.total - cogs,
-                margin: sales.total > 0 ? ((sales.total - cogs) / sales.total) * 100 : 0,
+                grossProfit,
+                margin: sales.total > 0 ? (grossProfit / sales.total) * 100 : 0,
+            },
+            cashFlow: {
+                revenue: sales.total,
+                purchases: procurement.total,
+                expenses: expenseStats.total,
+                net: cashFlowNet,
             },
             byProductType: byType,
         })

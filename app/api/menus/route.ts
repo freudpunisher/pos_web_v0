@@ -4,6 +4,7 @@ import { menuPermissions } from "@/lib/db/schema"
 import { eq, asc } from "drizzle-orm"
 import { cookies } from "next/headers"
 import { verifyToken } from "@/lib/auth"
+import { requireAdmin } from "@/lib/auth-guard"
 
 export async function GET() {
     try {
@@ -34,6 +35,9 @@ export async function GET() {
 
 export async function PUT(request: Request) {
     try {
+        const authError = await requireAdmin()
+        if (authError) return authError
+
         const body = await request.json()
         const { updates } = body
 

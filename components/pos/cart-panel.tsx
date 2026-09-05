@@ -1,6 +1,6 @@
 "use client"
 
-import { useState, useEffect, useRef } from "react"
+import { useState, useRef } from "react"
 import { Card, CardContent, CardHeader, CardTitle, CardFooter } from "@/components/ui/card"
 import { Button } from "@/components/ui/button"
 import { Input } from "@/components/ui/input"
@@ -17,20 +17,14 @@ import {
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import { useCart } from "@/lib/cart-context"
 import { formatCurrency } from "@/lib/mock-data"
-import { Minus, Plus, Trash2, ShoppingCart, User, Receipt, Banknote, X, Loader2, ClipboardList } from "lucide-react"
+import { Minus, Plus, Trash2, ShoppingCart, User, Receipt, Banknote, X, Loader2, CreditCard } from "lucide-react"
 import { useClients } from "@/hooks/use-clients"
 import { useTransactions } from "@/hooks/use-transactions"
 import { useAuth } from "@/lib/auth-context"
 import { useSettings } from "@/hooks/use-settings"
 import { toast } from "sonner"
 
-interface CartPanelProps {
-  orderMode: "dinein" | "takeaway" | "counter"
-  onCreateOrder?: () => void
-  creatingOrder?: boolean
-}
-
-export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: CartPanelProps) {
+export function CartPanel({ locationId }: { locationId?: string }) {
   const {
     items,
     selectedClient,
@@ -55,13 +49,10 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
 
   const [showCheckout, setShowCheckout] = useState(false)
   const [showReceipt, setShowReceipt] = useState(false)
-  const [paymentMethod, setPaymentMethod] = useState<"cash" | "credit">("cash")
+  const [paymentMethod, setPaymentMethod] = useState<"cash">("cash")
   const [lastTransactionId, setLastTransactionId] = useState<string | null>(null)
   const [lastReference, setLastReference] = useState<string | null>(null)
   const receiptRef = useRef<HTMLDivElement>(null)
-
-  const isCreditExceeded = !!(selectedClient && paymentMethod === "credit" &&
-    (Number.parseFloat(String(selectedClient.creditBalance)) + total > Number.parseFloat(String(selectedClient.creditLimit))))
 
   const maxQtyForItem = (item: CartItem): number => {
     const totalStock = productStockMap[item.id] ?? 0
@@ -89,7 +80,8 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
         total,
         paymentMethod,
         clientId: selectedClient?.id,
-        userId: user.id || "2f83e92d-b719-4c15-919f-e2ff7640f1c4", // Use current user ID or real admin fallback
+        userId: user.id,
+        locationId,
         items: items.map(item => ({
           productId: item.id,
           productName: item.sellingUnitName ? `${item.name} (${item.sellingUnitName})` : item.name,
@@ -109,15 +101,10 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
       setShowReceipt(true)
       setShowCheckout(false)
 
-      const isCashLike = ["cash", "card"].includes(paymentMethod)
-      if (isCashLike && result?.paymentCreated) {
-        toast.success(`Transaction ${result.invoiceRef} validée et ligne de paiement créée (${paymentMethod})`)
-      } else if (isCashLike && !result?.paymentCreated) {
-        toast.error(
-          `Transaction créée, mais ligne de paiement absente (${result?.debug?.normalizedType || "sale"}/${result?.debug?.normalizedPaymentMethod || paymentMethod})`
-        )
+      if (result?.paymentCreated) {
+        toast.success(`Transaction ${result.invoiceRef} validée`)
       } else {
-        toast.success(`Transaction ${result.invoiceRef || "completed"} avec succès`)
+        toast.error(`Transaction créée, mais paiement non enregistré`)
       }
     } catch (error: any) {
       toast.error(error.message || "Échec du traitement de la transaction")
@@ -142,21 +129,9 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
       <style>
         {`
           @media print {
-            body * {
-              visibility: hidden;
-            }
-            #printable-area, #printable-area * {
-              visibility: visible;
-            }
-            #printable-area {
-              position: absolute;
-              left: 0;
-              top: 0;
-              width: 100% !important;
-              margin: 0 !important;
-              padding: 0 !important;
-            }
-            /* Hide print button itself if it was inside, but it's not here */
+            body * { visibility: hidden; }
+            #printable-area, #printable-area * { visibility: visible; }
+            #printable-area { position: absolute; left: 0; top: 0; width: 100% !important; margin: 0 !important; padding: 0 !important; }
           }
         `}
       </style>
@@ -189,7 +164,7 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
           >
             <SelectTrigger className="mt-2">
               <User className="mr-2 h-4 w-4" />
-              <SelectValue placeholder={clientsLoading ? "Chargement des clients..." : "Client libre"} />
+              <SelectValue placeholder={clientsLoading ? "Chargement..." : "Client libre"} />
             </SelectTrigger>
             <SelectContent>
               <SelectItem value="default">Client libre</SelectItem>
@@ -220,7 +195,7 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
             ) : (
               <div className="space-y-3 pb-4">
                 {items.map((item) => (
-                  <div key={`${item.id}-${item.sellingUnitId || 'default'}`} className="rounded-lg border border-border bg-secondary/30 p-3">
+                  <div key={`${item.id}-${item.sellingUnitId || "default"}`} className="rounded-lg border border-border bg-secondary/30 p-3">
                     <div className="flex items-start justify-between">
                       <div className="flex-1">
                         <p className="font-medium text-sm">{item.name}</p>
@@ -304,10 +279,12 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
               <span className="text-muted-foreground">Sous-total</span>
               <span>{formatCurrency(subtotal)}</span>
             </div>
-            <div className="flex justify-between text-destructive">
-              <span>Discount</span>
-              <span>-{formatCurrency(discount)}</span>
-            </div>
+            {discount > 0 && (
+              <div className="flex justify-between text-destructive">
+                <span>Remise</span>
+                <span>-{formatCurrency(discount)}</span>
+              </div>
+            )}
             <div className="flex items-center justify-between">
               <div className="flex items-center gap-2">
                 <span className="text-muted-foreground">Taxe (%)</span>
@@ -334,15 +311,11 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
             <Button
               className="w-full"
               size="lg"
-              disabled={items.length === 0 || creatingOrder}
-              onClick={onCreateOrder}
+              disabled={items.length === 0}
+              onClick={() => setShowCheckout(true)}
             >
-              {creatingOrder ? (
-                <Loader2 className="mr-2 h-4 w-4 animate-spin" />
-              ) : (
-                <ClipboardList className="mr-2 h-4 w-4" />
-              )}
-              {creatingOrder ? "Création..." : "Créer la commande"}
+              <CreditCard className="mr-2 h-4 w-4" />
+              Payer
             </Button>
           </div>
         </CardFooter>
@@ -366,54 +339,26 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
 
             <div className="space-y-2">
               <label className="text-sm font-medium">Mode de paiement</label>
-              <div className="grid grid-cols-2 gap-2">
-                {(["cash", "credit"] as const).map((method) => (
-                  <Button
-                    key={method}
-                    variant={paymentMethod === method ? "default" : "outline"}
-                    onClick={() => setPaymentMethod(method)}
-                    className="capitalize"
-                    disabled={method === "credit" && !selectedClient}
-                  >
-                    {method === "cash" && <Banknote className="mr-2 h-4 w-4" />}
-                    {method === "credit" && <User className="mr-2 h-4 w-4" />}
-                    {method === "cash" ? "Espèces" : "Crédit"}
-                  </Button>
-                ))}
+              <div className="grid grid-cols-1 gap-2">
+                <Button
+                  variant="outline"
+                  className="capitalize justify-start"
+                  disabled
+                >
+                  <Banknote className="mr-2 h-4 w-4" />
+                  Espèces
+                </Button>
               </div>
-              {paymentMethod === "credit" && !selectedClient && (
-                <p className="text-xs text-destructive">Sélectionnez un client pour utiliser le crédit</p>
-              )}
             </div>
-
-            {selectedClient && paymentMethod === "credit" && (
-              <div className={`rounded-lg border p-3 ${isCreditExceeded ? 'border-destructive bg-destructive/10' : 'border-warning/50 bg-warning/10'}`}>
-                <div className="flex justify-between items-center mb-1">
-                  <p className="text-sm font-medium">Client : {selectedClient.name}</p>
-                  {isCreditExceeded && <Badge variant="destructive">Limite dépassée</Badge>}
-                </div>
-                <p className="text-sm text-muted-foreground">
-                  Solde actuel : {formatCurrency(Number.parseFloat(String(selectedClient.creditBalance)))}
-                </p>
-                <p className="text-sm text-muted-foreground">
-                  Limite de crédit : {formatCurrency(Number.parseFloat(String(selectedClient.creditLimit)))}
-                </p>
-                {isCreditExceeded && (
-                  <p className="text-xs font-bold text-destructive mt-2 flex items-center gap-1">
-                    <Trash2 className="h-3 w-3" /> La vente dépasse le crédit disponible !
-                  </p>
-                )}
-              </div>
-            )}
           </div>
 
           <DialogFooter>
             <Button variant="outline" onClick={() => setShowCheckout(false)} disabled={processing}>
               Annuler
             </Button>
-            <Button onClick={handleCheckout} disabled={processing || (paymentMethod === "credit" && isCreditExceeded)}>
+            <Button onClick={handleCheckout} disabled={processing}>
               {processing && <Loader2 className="mr-2 h-4 w-4 animate-spin" />}
-              {isCreditExceeded ? "Limite de crédit dépassée" : "Finaliser la vente"}
+              Finaliser la vente
             </Button>
           </DialogFooter>
         </DialogContent>
@@ -427,12 +372,12 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
               <Receipt className="h-5 w-5" />
               Reçu
             </DialogTitle>
-            <DialogDescription>Détails du reçu de transaction et résumé imprimable.</DialogDescription>
+            <DialogDescription>Détails de la transaction</DialogDescription>
           </DialogHeader>
 
           <div id="printable-area" ref={receiptRef} className="rounded-lg border border-border bg-card p-4 font-mono text-sm">
             <div className="text-center mb-4">
-              <img src="/assets/icon.png" alt="Logo" className="mx-auto max-h-12 mb-1" />
+              <p className="text-lg font-bold tracking-tight">Smart POS</p>
               {settings?.address && <p className="text-xs text-muted-foreground">{settings.address}</p>}
               {settings?.phone && <p className="text-xs text-muted-foreground">Tel: {settings.phone}</p>}
             </div>
@@ -452,10 +397,10 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
 
             <div className="space-y-2 mb-4">
               {items.map((item) => (
-                <div key={`${item.id}-${item.sellingUnitId || 'default'}`} className="flex justify-between text-xs">
+                <div key={`${item.id}-${item.sellingUnitId || "default"}`} className="flex justify-between text-xs">
                   <span>
                     {item.quantity}x {item.name}
-                    {item.sellingUnitName ? ` (${item.sellingUnitName})` : ''}
+                    {item.sellingUnitName ? ` (${item.sellingUnitName})` : ""}
                   </span>
                   <span>{formatCurrency(item.price * item.quantity)}</span>
                 </div>
@@ -466,26 +411,28 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
 
             <div className="space-y-1">
               <div className="flex justify-between text-xs">
-<span>Sous-total</span>
-                 <span>{formatCurrency(subtotal)}</span>
-               </div>
-               <div className="flex justify-between text-xs">
-                 <span>Remise</span>
-                 <span>-{formatCurrency(discount)}</span>
-               </div>
-               <div className="flex justify-between text-xs">
-                 <span>Taxe ({taxRate}%)</span>
-                 <span>{formatCurrency(tax)}</span>
-               </div>
-               <div className="flex justify-between font-bold">
-                 <span>TOTAL</span>
-                 <span>{formatCurrency(total)}</span>
-               </div>
-             </div>
+                <span>Sous-total</span>
+                <span>{formatCurrency(subtotal)}</span>
+              </div>
+              {discount > 0 && (
+                <div className="flex justify-between text-xs">
+                  <span>Remise</span>
+                  <span>-{formatCurrency(discount)}</span>
+                </div>
+              )}
+              <div className="flex justify-between text-xs">
+                <span>Taxe ({taxRate}%)</span>
+                <span>{formatCurrency(tax)}</span>
+              </div>
+              <div className="flex justify-between font-bold">
+                <span>TOTAL</span>
+                <span>{formatCurrency(total)}</span>
+              </div>
+            </div>
 
-             <Separator className="my-3" />
+            <Separator className="my-3" />
 
-             <p className="text-center text-xs text-muted-foreground">Merci pour votre achat !</p>
+            <p className="text-center text-xs text-muted-foreground">Merci pour votre achat !</p>
           </div>
 
           <DialogFooter>
@@ -494,7 +441,7 @@ export function CartPanel({ orderMode, onCreateOrder, creatingOrder = false }: C
             </Button>
             <Button onClick={handlePrint}>
               <Receipt className="mr-2 h-4 w-4" />
-              Imprimer le reçu
+              Imprimer
             </Button>
           </DialogFooter>
         </DialogContent>

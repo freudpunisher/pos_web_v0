@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import db from "@/lib/db"
 import { locations } from "@/lib/db/schema"
 import { eq, desc } from "drizzle-orm"
+import { requireManagerOrAdmin } from "@/lib/auth-guard"
 
 export async function GET() {
     try {
@@ -17,11 +18,21 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
+        const authError = await requireManagerOrAdmin()
+        if (authError) return authError
+
         const body = await request.json()
         const { name, type } = body
 
         if (!name || !type) {
             return NextResponse.json({ error: "Name and type are required" }, { status: 400 })
+        }
+
+        if (type === "primary") {
+            const [existing] = await db.select().from(locations).where(eq(locations.type, "primary")).limit(1)
+            if (existing) {
+                return NextResponse.json({ error: "Un emplacement principal existe déjà" }, { status: 400 })
+            }
         }
 
         const [newLocation] = await db.insert(locations).values({ name, type }).returning()

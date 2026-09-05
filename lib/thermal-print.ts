@@ -17,7 +17,7 @@ export interface ReceiptData {
 
 export function printThermal(data: ReceiptData): void {
   const fmt = (n: number) =>
-    `${n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ${data.currencySymbol || "Fbu"}`
+    `${n.toFixed(0).replace(/\B(?=(\d{3})+(?!\d))/g, " ")} ${data.currencySymbol || "FC"}`
   const w = window.open("", "_blank", "width=400,height=650")
   if (!w) return
 
@@ -90,7 +90,7 @@ export function printThermal(data: ReceiptData): void {
 
   <!-- Store Header -->
   <div class="header">
-    <div style="font-size:16px;font-weight:bold;letter-spacing:2px;margin-bottom:1mm;">${data.header.name}</div>
+    <div style="font-size:16px;font-weight:bold;letter-spacing:2px;margin-bottom:1mm;">Smart POS</div>
     ${data.header.address ? `<div class="sub">${data.header.address}</div>` : ""}
     ${data.header.phone ? `<div class="sub">Tel: ${data.header.phone}</div>` : ""}
     ${data.header.taxId ? `<div class="tax">NIF: ${data.header.taxId}</div>` : ""}

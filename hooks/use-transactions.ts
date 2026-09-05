@@ -7,12 +7,13 @@ export function useTransactions(sector?: string) {
     const [loading, setLoading] = useState(false)
     const [error, setError] = useState<string | null>(null)
 
-    const fetchTransactions = useCallback(async (dateFrom?: string, dateTo?: string) => {
+    const fetchTransactions = useCallback(async (dateFrom?: string, dateTo?: string, userId?: string) => {
         setLoading(true)
         try {
             const params = new URLSearchParams()
             if (dateFrom) params.append("dateFrom", dateFrom)
             if (dateTo) params.append("dateTo", dateTo)
+            if (userId) params.append("userId", userId)
             const url = `/api/transactions${params.toString() ? `?${params.toString()}` : ""}`
             const response = await fetch(url)
             if (!response.ok) throw new Error("Failed to fetch transactions")

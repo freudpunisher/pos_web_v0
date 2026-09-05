@@ -2,6 +2,7 @@ import { NextResponse } from "next/server"
 import db from "@/lib/db"
 import { categories } from "@/lib/db/schema"
 import { asc } from "drizzle-orm"
+import { requireManagerOrAdmin } from "@/lib/auth-guard"
 
 export async function GET() {
     try {
@@ -15,6 +16,9 @@ export async function GET() {
 
 export async function POST(request: Request) {
     try {
+        const authError = await requireManagerOrAdmin()
+        if (authError) return authError
+
         const body = await request.json()
         const { name, description, groupId } = body
 
