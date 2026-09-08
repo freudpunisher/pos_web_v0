@@ -12,6 +12,7 @@ import { Separator } from "@/components/ui/separator"
 import { Progress } from "@/components/ui/progress"
 import { Label } from "@/components/ui/label"
 import { Textarea } from "@/components/ui/textarea"
+import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
 import type { Client } from "@/lib/types"
 import {
   Users,
@@ -30,9 +31,11 @@ import {
   Ban,
   CheckCircle,
   MoreVertical,
+  Store,
 } from "lucide-react"
 import { useClients } from "@/hooks/use-clients"
 import { useTransactions } from "@/hooks/use-transactions"
+import { useLocations } from "@/hooks/use-locations"
 import {
   DropdownMenu,
   DropdownMenuContent,
@@ -52,6 +55,7 @@ export default function ClientsPage() {
 
   const { clients, loading: clientsLoading, createClient, updateClient, toggleClientStatus } = useClients(search)
   const { transactions, fetchTransactions, loading: txLoading } = useTransactions()
+  const { locations, loading: locationsLoading } = useLocations()
 
   const [formData, setFormData] = useState({
     id: "",
@@ -59,6 +63,7 @@ export default function ClientsPage() {
     email: "",
     phone: "",
     address: "",
+    locationId: "",
     creditLimit: "0",
   })
 
@@ -83,7 +88,7 @@ export default function ClientsPage() {
 
   const handleOpenCreate = () => {
     setIsEditing(false)
-    setFormData({ id: "", name: "", email: "", phone: "", address: "", creditLimit: "0" })
+    setFormData({ id: "", name: "", email: "", phone: "", address: "", locationId: "", creditLimit: "0" })
     setShowUpsertDialog(true)
   }
 
@@ -96,6 +101,7 @@ export default function ClientsPage() {
       email: client.email,
       phone: client.phone,
       address: client.address,
+      locationId: client.locationId || "",
       creditLimit: client.creditLimit,
     })
     setShowUpsertDialog(true)
@@ -105,10 +111,11 @@ export default function ClientsPage() {
     e.preventDefault()
     setIsSubmitting(true)
     try {
+      const data = { ...formData, locationId: formData.locationId || null }
       if (isEditing) {
-        await updateClient(formData.id, formData)
+        await updateClient(formData.id, data)
       } else {
-        await createClient(formData)
+        await createClient(data)
       }
       setShowUpsertDialog(false)
     } catch (error) {
@@ -208,6 +215,7 @@ export default function ClientsPage() {
               <TableHeader>
                 <TableRow className="hover:bg-transparent border-border">
                   <TableHead className="text-muted-foreground">Client</TableHead>
+                  <TableHead className="text-muted-foreground">Emplacement</TableHead>
                   <TableHead className="text-muted-foreground">Contact</TableHead>
                   <TableHead className="text-muted-foreground">Statut</TableHead>
                   <TableHead className="text-muted-foreground">Solde crédit</TableHead>
@@ -219,7 +227,7 @@ export default function ClientsPage() {
               <TableBody>
                 {clientsLoading ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center">
+                    <TableCell colSpan={8} className="h-24 text-center">
                       <div className="flex items-center justify-center gap-2">
                         <Loader2 className="h-4 w-4 animate-spin text-primary" />
                         <span>Chargement des clients...</span>
@@ -228,7 +236,7 @@ export default function ClientsPage() {
                   </TableRow>
                 ) : clients.length === 0 ? (
                   <TableRow>
-                    <TableCell colSpan={7} className="h-24 text-center text-muted-foreground">
+                    <TableCell colSpan={8} className="h-24 text-center text-muted-foreground">
                       Aucun client trouvé
                     </TableCell>
                   </TableRow>
@@ -251,6 +259,16 @@ export default function ClientsPage() {
                               <p className="text-sm text-muted-foreground">{client.email}</p>
                             </div>
                           </div>
+                        </TableCell>
+                        <TableCell>
+                          {client.locationId ? (
+                            <div className="flex items-center gap-1.5">
+                              <Store className="h-3.5 w-3.5 text-muted-foreground" />
+                              <span className="text-sm">{locations.find((l) => l.id === client.locationId)?.name || "—"}</span>
+                            </div>
+                          ) : (
+                            <span className="text-sm text-muted-foreground">—</span>
+                          )}
                         </TableCell>
                         <TableCell>
                           <span className="text-sm text-muted-foreground">{client.phone}</span>
@@ -376,6 +394,20 @@ export default function ClientsPage() {
                   required
                 />
               </div>
+              <div className="grid gap-2">
+                <Label htmlFor="locationId">Emplacement</Label>
+                <Select value={formData.locationId} onValueChange={(v) => setFormData({ ...formData, locationId: v })}>
+                  <SelectTrigger>
+                    <SelectValue placeholder="Sélectionner un emplacement" />
+                  </SelectTrigger>
+                  <SelectContent>
+                    <SelectItem value="none">Aucun emplacement</SelectItem>
+                    {locations.filter((l) => l.isActive).map((loc) => (
+                      <SelectItem key={loc.id} value={loc.id}>{loc.name}</SelectItem>
+                    ))}
+                  </SelectContent>
+                </Select>
+              </div>
             </div>
             <DialogFooter>
               <Button type="button" variant="outline" onClick={() => setShowUpsertDialog(false)}>
@@ -434,6 +466,12 @@ export default function ClientsPage() {
                       <MapPin className="h-4 w-4" />
                       <span>{selectedClient.address}</span>
                     </div>
+                    {selectedClient.locationId && (
+                      <div className="flex items-center gap-2">
+                        <Store className="h-4 w-4" />
+                        <span>{locations.find((l) => l.id === selectedClient.locationId)?.name || "—"}</span>
+                      </div>
+                    )}
                     <div className="flex items-center gap-2">
                       <Calendar className="h-4 w-4" />
                       <span>Client depuis {new Date(selectedClient.createdAt).toLocaleDateString()}</span>

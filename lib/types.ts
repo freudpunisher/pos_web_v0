@@ -58,6 +58,7 @@ export interface Client {
   email: string
   phone: string
   address: string
+  locationId: string | null
   creditBalance: number
   creditLimit: number
   createdAt: string
