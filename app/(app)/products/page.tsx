@@ -7,7 +7,7 @@ import { Button } from "@/components/ui/button"
 import { Table, TableBody, TableCell, TableHead, TableHeader, TableRow } from "@/components/ui/table"
 import { Badge } from "@/components/ui/badge"
 import { Select, SelectContent, SelectItem, SelectTrigger, SelectValue } from "@/components/ui/select"
-import { Search, Plus, Edit2, Trash2, Loader2, Package, GlassWater, ShoppingBag, Wheat } from "lucide-react"
+import { Search, Plus, Edit2, Trash2, Loader2, Package, GlassWater, ShoppingBag, Wheat, Candy, Sparkles } from "lucide-react"
 import { useProducts } from "@/hooks/use-products"
 import { useAuth } from "@/lib/auth-context"
 import { ProductFormDialog } from "@/components/inventory/product-form-dialog"
@@ -19,6 +19,8 @@ const typeIcons: Record<string, any> = {
     drink: GlassWater,
     food: ShoppingBag,
     ingredient: Wheat,
+    snacks: Candy,
+    household: Sparkles,
     others: Package,
 }
 

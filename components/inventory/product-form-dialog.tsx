@@ -43,7 +43,6 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
         name: "",
         productTypeId: "",
         subcategoryId: "",
-        price: "",
         minStock: "10",
     })
     const { activeSubcategories, loading: subcatsLoading } = useSubcategories(formData.productTypeId || null)
@@ -55,7 +54,6 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                 name: product.name || "",
                 productTypeId: product.productTypeId || "",
                 subcategoryId: product.subcategoryId || "",
-                price: product.price?.toString() || "",
                 minStock: product.minStock?.toString() || "10",
             })
             if (product.sellingUnits && product.sellingUnits.length > 0) {
@@ -75,7 +73,6 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                 name: "",
                 productTypeId: "",
                 subcategoryId: "",
-                price: "",
                 minStock: "10",
             })
             setSellingUnits([])
@@ -100,26 +97,28 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
         e.preventDefault()
         setLoading(true)
         try {
+            const validSellingUnits = sellingUnits.filter(su => su.name.trim() && su.price)
+            if (validSellingUnits.length === 0) {
+                toast.error("Ajoutez au moins une unité de vente avec un prix.")
+                setLoading(false)
+                return
+            }
+
             const data: any = {
                 name: formData.name,
                 productTypeId: formData.productTypeId || null,
                 subcategoryId: formData.subcategoryId || null,
-                price: parseFloat(formData.price) || 0,
+                price: parseFloat(validSellingUnits[0].price) || 0,
                 minStock: parseInt(formData.minStock) || 10,
             }
 
-            const validSellingUnits = sellingUnits.filter(su => su.name.trim() && su.price)
-            if (validSellingUnits.length > 0) {
-                data.sellingUnits = validSellingUnits.map((su, i) => ({
-                    name: su.name.trim(),
-                    unitId: su.unitId || null,
-                    price: parseFloat(su.price) || 0,
-                    conversionFactor: parseFloat(su.conversionFactor) || 1,
-                    isDefault: i === 0,
-                }))
-            } else {
-                data.sellingUnits = []
-            }
+            data.sellingUnits = validSellingUnits.map((su, i) => ({
+                name: su.name.trim(),
+                unitId: su.unitId || null,
+                price: parseFloat(su.price) || 0,
+                conversionFactor: parseFloat(su.conversionFactor) || 1,
+                isDefault: i === 0,
+            }))
 
             await onSubmit(data)
             onOpenChange(false)
@@ -192,22 +191,7 @@ export function ProductFormDialog({ product, open, onOpenChange, onSubmit }: Pro
                             />
                         </div>
 
-                        {/* Selling Price */}
-                        <div className="grid grid-cols-4 items-center gap-4">
-                            <Label htmlFor="price" className="text-right">
-                                Prix de vente
-                            </Label>
-                                <Input
-                                    id="price"
-                                    type="number"
-                                    step="0.01"
-                                    min="0"
-                                    value={formData.price}
-                                    onChange={(e) => setFormData({ ...formData, price: e.target.value })}
-                                    className="col-span-3"
-                                    required
-                                />
-                            </div>
+                        {/* Selling Price: prix porté par les unités de vente ci-dessous */}
 
                         <div className="grid grid-cols-4 items-center gap-4">
                             <Label htmlFor="minStock" className="text-right">Stock minimum</Label>

@@ -2,7 +2,7 @@ import { NextResponse } from "next/server"
 import { NextRequest } from "next/server"
 import { verifyToken } from "@/lib/auth"
 import db from "@/lib/db"
-import { transactions, transactionItems, products, stock, stockMovements, clients, locations, cashFlow, creditRecords } from "@/lib/db/schema"
+import { transactions, transactionItems, products, stock, stockMovements, clients, locations, cashFlow, creditRecords, productSellingUnits } from "@/lib/db/schema"
 import { eq, sql, and, max, gte, lte } from "drizzle-orm"
 
 function fmt(date: Date) {
@@ -71,6 +71,9 @@ export async function POST(request: Request) {
         if (!payload) {
             return NextResponse.json({ error: "Unauthorized" }, { status: 401 })
         }
+        if (!["admin", "manager", "cashier"].includes(payload.role)) {
+            return NextResponse.json({ error: "Forbidden" }, { status: 403 })
+        }
 
         const body = await request.json()
         const { total, paymentMethod, clientId, items, locationId, reference, discount } = body
@@ -137,6 +140,43 @@ export async function POST(request: Request) {
                     throw new Error("Invalid item quantity")
                 }
 
+                // Resolve selling unit conversion factor (defaults to base unit = 1)
+                let conversionFactor = 1
+                if (item.sellingUnitId) {
+                    const [su] = await tx
+                        .select({ conversionFactor: productSellingUnits.conversionFactor })
+                        .from(productSellingUnits)
+                        .where(and(eq(productSellingUnits.id, item.sellingUnitId), eq(productSellingUnits.productId, item.productId)))
+                        .limit(1)
+                    if (su) {
+                        conversionFactor = Number(su.conversionFactor)
+                    }
+                }
+                const stockQty = itemQuantity * conversionFactor
+
+                // Resolve target location (body locationId or first active location)
+                let targetLocation
+                if (locationId) {
+                    const [loc] = await tx.select().from(locations).where(eq(locations.id, locationId)).limit(1)
+                    targetLocation = loc
+                }
+                if (!targetLocation) {
+                    const [defaultLoc] = await tx.select().from(locations).where(eq(locations.isActive, true)).limit(1)
+                    targetLocation = defaultLoc
+                }
+
+                // Stock sufficiency check in base units
+                if (targetLocation) {
+                    let available = Number((await tx
+                        .select({ quantityOnHand: stock.quantityOnHand })
+                        .from(stock)
+                        .where(and(eq(stock.productId, item.productId), eq(stock.locationId, targetLocation.id)))
+                        .limit(1))?.[0]?.quantityOnHand ?? 0)
+                    if (available < stockQty) {
+                        throw new Error(`Stock insuffisant pour ${item.productName}. Disponible: ${available}, requis: ${stockQty}`)
+                    }
+                }
+
                 await tx.insert(transactionItems).values({
                     transactionId: newTransaction.id,
                     productId: item.productId,
@@ -146,37 +186,37 @@ export async function POST(request: Request) {
                     discount: (item.discount || 0).toString(),
                 })
 
-                // Update product stock
+                // Keep backward-compatible product stock in sync (decrement in base units)
                 await tx
                     .update(products)
-                    .set({ stock: sql`${products.stock} - ${itemQuantity}` })
+                    .set({ stock: sql`${products.stock} - ${stockQty}` })
                     .where(eq(products.id, item.productId))
 
-                // Update per-location stock
-                if (locationId) {
+                // Update per-location stock in base units
+                if (targetLocation) {
                     const [existingStock] = await tx
                         .select()
                         .from(stock)
-                        .where(and(eq(stock.productId, item.productId), eq(stock.locationId, locationId)))
+                        .where(and(eq(stock.productId, item.productId), eq(stock.locationId, targetLocation.id)))
                         .limit(1)
 
                     if (existingStock) {
                         await tx
                             .update(stock)
                             .set({
-                                quantityOnHand: sql`${stock.quantityOnHand} - ${itemQuantity}`,
+                                quantityOnHand: sql`${stock.quantityOnHand} - ${stockQty}`,
                                 updatedAt: new Date(),
                             })
                             .where(eq(stock.id, existingStock.id))
                     }
                 }
 
-                // Stock movement
+                // Stock movement in base units
                 await tx.insert(stockMovements).values({
                     productId: item.productId,
                     productName: item.productName,
                     type: "out",
-                    quantity: (-itemQuantity).toString(),
+                    quantity: (-stockQty).toString(),
                     userId: userId,
                     locationId: locationId || null,
                     referenceId: newTransaction.id,
