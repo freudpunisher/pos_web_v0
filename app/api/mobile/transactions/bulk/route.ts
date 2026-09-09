@@ -48,9 +48,11 @@ export async function POST(request: Request) {
                     continue
                 }
 
+                // Reference stays in the outer scope so it can be used for the result below
+                let txReference: string | null = reference
+
                 const result = await db.transaction(async (tx) => {
                     // Generate reference: MOB- prefix for mobile-originated sales
-                    let txReference = reference
                     if (!txReference) {
                         const now = new Date()
                         const year = now.getFullYear()
@@ -62,6 +64,16 @@ export async function POST(request: Request) {
                             .where(sql`${transactions.reference} ~ ${`^MOB-${year}-${month}-[0-9]+$`}`)
                         const lastNum = lastRef?.maxRef ? parseInt(lastRef.maxRef.split("-").pop()!, 10) : 0
                         txReference = `${prefix}${String(lastNum + 1).padStart(5, "0")}`
+                    }
+
+                    // Idempotency: skip a sale that was already synced (retry after partial failure)
+                    const [existingTx] = await tx
+                        .select({ id: transactions.id })
+                        .from(transactions)
+                        .where(eq(transactions.reference, txReference))
+                        .limit(1)
+                    if (existingTx) {
+                        return { id: existingTx.id, reference: txReference, success: true, skipped: true }
                     }
 
                     const [newTransaction] = await tx
