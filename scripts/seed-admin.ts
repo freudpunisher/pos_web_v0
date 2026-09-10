@@ -29,6 +29,7 @@ async function seedAdmin() {
             await db.update(users)
                 .set({
                     password: hashedPassword,
+                    username: ADMIN_NAME,
                     id: ADMIN_ID // Ensure ID matches our fallback expectation
                 })
                 .where(eq(users.email, ADMIN_EMAIL))
@@ -37,6 +38,7 @@ async function seedAdmin() {
             await db.insert(users).values({
                 id: ADMIN_ID,
                 name: ADMIN_NAME,
+                username: ADMIN_NAME,
                 email: ADMIN_EMAIL,
                 role: "admin",
                 password: hashedPassword,

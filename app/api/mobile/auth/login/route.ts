@@ -8,24 +8,22 @@ import { generateToken } from "@/lib/auth"
 export async function POST(request: Request) {
     try {
         const body = await request.json()
-        const { email, password } = body
+        const { username, email, password } = body
 
-        if (!email || !password) {
+        if ((!username && !email) || !password) {
             return NextResponse.json(
-                { error: "Email and password are required" },
+                { error: "Username and password are required" },
                 { status: 400 }
             )
         }
 
-        const [user] = await db
-            .select()
-            .from(users)
-            .where(eq(users.email, email))
-            .limit(1)
+        const [user] = username
+            ? await db.select().from(users).where(eq(users.username, username)).limit(1)
+            : await db.select().from(users).where(eq(users.email, email)).limit(1)
 
         if (!user) {
             return NextResponse.json(
-                { error: "Invalid email or password" },
+                { error: "Invalid username or password" },
                 { status: 401 }
             )
         }
@@ -33,7 +31,7 @@ export async function POST(request: Request) {
         const isValidPassword = await comparePassword(password, user.password)
         if (!isValidPassword) {
             return NextResponse.json(
-                { error: "Invalid email or password" },
+                { error: "Invalid username or password" },
                 { status: 401 }
             )
         }
@@ -59,6 +57,7 @@ export async function POST(request: Request) {
             user: {
                 id: user.id,
                 name: user.name,
+                username: user.username,
                 email: user.email,
                 role: user.role,
                 avatar: user.avatar,

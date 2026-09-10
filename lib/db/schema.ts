@@ -30,6 +30,7 @@ export const caisseMovementTypeEnum = pgEnum("caisse_movement_type", ["in", "out
 export const users = pgTable("users", {
     id: uuid("id").primaryKey().defaultRandom(),
     name: text("name").notNull(),
+    username: text("username").unique(),
     email: text("email").notNull().unique(),
     phone: text("phone"),
     role: userRoleEnum("role").notNull().default("cashier"),

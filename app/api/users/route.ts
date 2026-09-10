@@ -14,6 +14,7 @@ export async function GET() {
             .select({
                 id: users.id,
                 name: users.name,
+                username: users.username,
                 email: users.email,
                 phone: users.phone,
                 role: users.role,
@@ -34,7 +35,7 @@ export async function POST(request: Request) {
         if (authError) return authError
 
         const body = await request.json()
-        const { name, email, phone, role, avatar, password } = body
+        const { name, username, email, phone, role, avatar, password } = body
 
         if (!name || !email || !password) {
             return NextResponse.json(
@@ -43,6 +44,9 @@ export async function POST(request: Request) {
             )
         }
 
+        const derivedUsername = (username?.trim() || name.toLowerCase().replace(/[^a-z0-9]+/g, "_"))
+            .replace(/^_+|_+$/g, "")
+
         // Hash password before storing
         const hashedPassword = await hashPassword(password)
 
@@ -50,15 +54,17 @@ export async function POST(request: Request) {
             .insert(users)
             .values({
                 name,
+                username: derivedUsername,
                 email,
                 phone,
-                role: role || "cashier_food",
+                role: role || "cashier",
                 password: hashedPassword,
                 avatar,
             })
             .returning({
                 id: users.id,
                 name: users.name,
+                username: users.username,
                 email: users.email,
                 phone: users.phone,
                 role: users.role,
