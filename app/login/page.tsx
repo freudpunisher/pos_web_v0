@@ -7,13 +7,13 @@ import { Input } from "@/components/ui/input"
 import { Button } from "@/components/ui/button"
 import { Label } from "@/components/ui/label"
 import { useAuth } from "@/lib/auth-context"
-import { Warehouse, Loader2, Mail, Lock } from "lucide-react"
+import { Warehouse, Loader2, User, Lock } from "lucide-react"
 import { toast } from "sonner"
 
 export default function LoginPage() {
     const router = useRouter()
     const { login, isAuthenticated, loading: authLoading } = useAuth()
-    const [email, setEmail] = useState("")
+    const [username, setUsername] = useState("")
     const [password, setPassword] = useState("")
     const [loading, setLoading] = useState(false)
 
@@ -29,12 +29,12 @@ export default function LoginPage() {
         setLoading(true)
 
         try {
-            const success = await login(email, password)
+            const success = await login(username, password)
             if (success) {
                 toast.success("Connexion réussie !")
                 router.push("/dashboard")
             } else {
-                toast.error("Email ou mot de passe invalide")
+                toast.error("Nom d'utilisateur ou mot de passe invalide")
             }
         } catch (error) {
             toast.error("Une erreur est survenue lors de la connexion")
@@ -58,18 +58,18 @@ export default function LoginPage() {
                 <CardContent>
                     <form onSubmit={handleSubmit} className="space-y-4">
                         <div className="space-y-2">
-                            <Label htmlFor="email">Email</Label>
+                            <Label htmlFor="username">Nom d&apos;utilisateur</Label>
                             <div className="relative">
-                                <Mail className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
+                                <User className="absolute left-3 top-1/2 h-4 w-4 -translate-y-1/2 text-muted-foreground" />
                                 <Input
-                                    id="email"
-                                    type="email"
-                                    placeholder="admin@smartpos.com"
-                                    value={email}
-                                    onChange={(e) => setEmail(e.target.value)}
+                                    id="username"
+                                    type="text"
+                                    placeholder="ex: admin"
+                                    value={username}
+                                    onChange={(e) => setUsername(e.target.value)}
                                     className="pl-10"
                                     required
-                                    autoComplete="email"
+                                    autoComplete="username"
                                 />
                             </div>
                         </div>
